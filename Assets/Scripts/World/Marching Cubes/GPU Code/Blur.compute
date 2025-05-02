@@ -1,0 +1,62 @@
+/// <summary>
+/// This shader applies a blur effect to a 3D density texture using a weighted average based on distance from the center voxel.
+/// </summary>
+/// <remarks>
+/// The shader samples voxels within a specified blur radius and calculates a weighted average to produce a smoother texture.
+/// It operates on 3D textures and is designed to support procedural terrain generation using marching cubes.
+/// </remarks>
+/// <param name="Source">The input 3D texture containing original density values.</param>
+/// <param name="Result">The output 3D texture to store the blurred density values.</param>
+/// <param name="blurRadius">The radius within which neighboring voxels contribute to the blur effect.</param>
+/// <param name="textureSize">The size of the cubic 3D texture. Assumes all dimensions are equal.</param>
+
+#pragma kernel Blur
+
+// 3D texture resources for reading and writing
+RWTexture3D<float> Source;
+RWTexture3D<float> Result;
+
+// Shader parameters
+int blurRadius;
+int textureSize;
+
+// Number of threads per group
+[numthreads(8, 8, 8)]
+void Blur(int3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside the texture bounds
+    if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize)
+    {
+        return;
+    }
+
+    float sum = 0.0f;
+    float totalWeight = 0.0f;
+
+    // Loop through the neighboring voxels within the blur radius
+    for (int z = -blurRadius; z <= blurRadius; z++)
+    {
+        for (int y = -blurRadius; y <= blurRadius; y++)
+        {
+            for (int x = -blurRadius; x <= blurRadius; x++)
+            {
+                // Calculate distance to the current sample position
+                float dst = length(float3(x, y, z)) / blurRadius;
+                
+                // Compute weight based on distance
+                float weight = pow(2.5f, -10.0f * dst);
+                
+                // Clamp the sample position to stay within texture bounds
+                int3 samplePos = id + int3(x, y, z);
+                samplePos = max(0, min(samplePos, textureSize));
+
+                // Accumulate weighted density values
+                sum += Source[samplePos] * weight;
+                totalWeight += weight;
+            }
+        }
+    }
+
+    // Assign the final blurred density value to the result texture
+    Result[id] = sum / totalWeight;
+}

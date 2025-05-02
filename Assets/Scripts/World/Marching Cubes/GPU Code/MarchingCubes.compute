@@ -1,0 +1,220 @@
+// A compute shader that implements the marching cubes algorithm for generating terrain mesh.
+// This shader processes 3D density field data to create a set of triangles based on cube configurations.
+// It uses vertex interpolation, normal calculation, and vertex welding to ensure smooth and seamless terrain.
+
+#pragma kernel ProcessCube
+#include "MarchTables.compute"
+
+// Vertex structure matches the C# VertexData struct
+struct Vertex
+{
+    float3 position;
+    float3 normal;
+    int2 id;
+};
+
+struct Triangle
+{
+    Vertex vertexC;
+    Vertex vertexB;
+    Vertex vertexA;
+};
+
+// Buffers and textures
+AppendStructuredBuffer<Triangle> triangles;
+RWTexture3D<float> DensityTexture;
+
+// Parameters
+int textureSize;
+int numPointsPerAxis;
+float planetSize;
+float isoLevel;
+float3 chunkCoord;
+
+// Convert grid coordinates to world position
+float3 coordToWorld(int3 coord)
+{
+    return (coord / (textureSize - 1.0f) - 0.5f) * planetSize;
+}
+
+// Get point index in the chunk
+int indexFromCoord(int3 coord)
+{
+    coord = coord - int3(chunkCoord);
+    return coord.z * numPointsPerAxis * numPointsPerAxis + coord.y * numPointsPerAxis + coord.x;
+}
+
+// Sample density value safely
+float sampleDensity(int3 coord)
+{
+    coord = max(0, min(coord, textureSize));
+    return DensityTexture[coord];
+}
+
+// Calculate normal using central differences
+float3 calculateNormal(int3 coord)
+{
+    float3 offsetX = float3(1, 0, 0);
+    float3 offsetY = float3(0, 1, 0);
+    float3 offsetZ = float3(0, 0, 1);
+
+    float dx = sampleDensity(coord + offsetX) - sampleDensity(coord - offsetX);
+    float dy = sampleDensity(coord + offsetY) - sampleDensity(coord - offsetY);
+    float dz = sampleDensity(coord + offsetZ) - sampleDensity(coord - offsetZ);
+    
+    // For heightmap terrain, ensure normals have a proper upward component
+    // Reduce the horizontal components and strengthen the vertical
+    dx *= 0.8;
+    dz *= 0.8;
+    dy = abs(dy) * 1.5; // Strengthen y component and ensure it's positive
+    
+    return normalize(float3(dx, dy, dz));
+}
+
+// Create a vertex along an edge
+Vertex createVertex(int3 coordA, int3 coordB)
+{
+    // Get positions and density values
+    float3 posA = coordToWorld(coordA);
+    float3 posB = coordToWorld(coordB);
+    float densityA = sampleDensity(coordA);
+    float densityB = sampleDensity(coordB);
+
+    // Interpolate position based on density values
+    float t = (isoLevel - densityA) / (densityB - densityA);
+    float3 position = posA + t * (posB - posA);
+
+    // ADAPTIVE SAMPLING FOR RIDGES
+    // Calculate exact interpolated coordinate for more accurate normal sampling
+    int3 centerCoord = int3(lerp(float3(coordA), float3(coordB), t));
+    
+    // Check gradient magnitude to detect sharp features
+    float gradMagnitude = 0;
+    {
+        // Quick gradient check
+        float dx = sampleDensity(centerCoord + int3(1, 0, 0)) - sampleDensity(centerCoord - int3(1, 0, 0));
+        float dy = sampleDensity(centerCoord + int3(0, 1, 0)) - sampleDensity(centerCoord - int3(0, 1, 0));
+        float dz = sampleDensity(centerCoord + int3(0, 0, 1)) - sampleDensity(centerCoord - int3(0, 0, 1));
+        gradMagnitude = length(float3(dx, dy, dz));
+    }
+    
+    // Adaptive sampling - use closer samples for sharp features, wider for smooth areas
+    int dist = (gradMagnitude > 0.4) ? 1 : 2;
+    
+    // Multiple sample points for smoother transitions on ridges
+    float3 normal = float3(0, 0, 0);
+    
+    // Primary sample at center point
+    {
+        float dx = sampleDensity(centerCoord + int3(dist, 0, 0)) - sampleDensity(centerCoord - int3(dist, 0, 0));
+        float dy = sampleDensity(centerCoord + int3(0, dist, 0)) - sampleDensity(centerCoord - int3(0, dist, 0));
+        float dz = sampleDensity(centerCoord + int3(0, 0, dist)) - sampleDensity(centerCoord - int3(0, 0, dist));
+        normal += float3(dx, dy, dz);
+    }
+    
+    // For ridge areas, add additional samples with smaller kernel
+    if (gradMagnitude > 0.3)
+    {
+        // Offset slightly in direction of vertex A
+        int3 offsetA = centerCoord + int3(sign(coordA.x - coordB.x), sign(coordA.y - coordB.y), sign(coordA.z - coordB.z));
+        float dxA = sampleDensity(offsetA + int3(1, 0, 0)) - sampleDensity(offsetA - int3(1, 0, 0));
+        float dyA = sampleDensity(offsetA + int3(0, 1, 0)) - sampleDensity(offsetA - int3(0, 1, 0));
+        float dzA = sampleDensity(offsetA + int3(0, 0, 1)) - sampleDensity(offsetA - int3(0, 0, 1));
+        normal += float3(dxA, dyA, dzA) * 0.5; // Half weight for offset sample
+    }
+    
+    // CRITICAL FIX: Invert normal direction to point outward from the terrain
+    normal = -normal;
+    
+    if (length(normal) < 0.001)
+    {
+        normal = float3(0, 1, 0);
+    }
+    else
+    {
+        normal = normalize(normal);
+    }
+
+    // Create vertex ID for welding
+    int indexA = indexFromCoord(coordA);
+    int indexB = indexFromCoord(coordB);
+
+    // Create and return vertex
+    Vertex vertex;
+    vertex.position = position;
+    vertex.normal = normal;
+    vertex.id = int2(min(indexA, indexB), max(indexA, indexB));
+    return vertex;
+}
+
+[numthreads(8, 8, 8)]
+void ProcessCube(int3 id : SV_DispatchThreadID)
+{
+    // Check if within chunk bounds
+    int numCubesPerAxis = numPointsPerAxis - 1;
+    if (id.x >= numCubesPerAxis || id.y >= numCubesPerAxis || id.z >= numCubesPerAxis)
+    {
+        return;
+    }
+
+    // Get coordinates in the density field
+    int3 coord = id + int3(chunkCoord);
+
+    // Get the eight corners of the cube
+    int3 cornerCoords[8];
+    cornerCoords[0] = coord + int3(0, 0, 0);
+    cornerCoords[1] = coord + int3(1, 0, 0);
+    cornerCoords[2] = coord + int3(1, 0, 1);
+    cornerCoords[3] = coord + int3(0, 0, 1);
+    cornerCoords[4] = coord + int3(0, 1, 0);
+    cornerCoords[5] = coord + int3(1, 1, 0);
+    cornerCoords[6] = coord + int3(1, 1, 1);
+    cornerCoords[7] = coord + int3(0, 1, 1);
+
+    // Calculate cube configuration index
+    int cubeConfiguration = 0;
+    for (int cornerIndex = 0; cornerIndex < 8; cornerIndex++)
+    {
+        if (sampleDensity(cornerCoords[cornerIndex]) < isoLevel)
+        {
+            cubeConfiguration |= (1 << cornerIndex);
+        }
+    }
+
+    // Get triangulation for this cube configuration
+    int edgeIndices[16] = triangulation[cubeConfiguration];
+
+    // Create triangles for the current cube
+    for (int triIndex = 0; triIndex < 16; triIndex += 3)
+    {
+        if (edgeIndices[triIndex] == -1)
+        {
+            break;
+        }
+
+        // Get indices for the three edges that form a triangle
+        int edgeIndexA = edgeIndices[triIndex];
+        int a0 = cornerIndexAFromEdge[edgeIndexA];
+        int a1 = cornerIndexBFromEdge[edgeIndexA];
+
+        int edgeIndexB = edgeIndices[triIndex + 1];
+        int b0 = cornerIndexAFromEdge[edgeIndexB];
+        int b1 = cornerIndexBFromEdge[edgeIndexB];
+
+        int edgeIndexC = edgeIndices[triIndex + 2];
+        int c0 = cornerIndexAFromEdge[edgeIndexC];
+        int c1 = cornerIndexBFromEdge[edgeIndexC];
+
+        // Create the three vertices
+        Vertex vertexA = createVertex(cornerCoords[a0], cornerCoords[a1]);
+        Vertex vertexB = createVertex(cornerCoords[b0], cornerCoords[b1]);
+        Vertex vertexC = createVertex(cornerCoords[c0], cornerCoords[c1]);
+
+        // Create and append triangle
+        Triangle tri;
+        tri.vertexA = vertexA;
+        tri.vertexB = vertexB;
+        tri.vertexC = vertexC;
+        triangles.Append(tri);
+    }
+}
