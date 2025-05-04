@@ -286,6 +286,50 @@ public class TerrainGenerator : MonoBehaviour
     }
 
     /// <summary>
+    /// Sets the material for all chunks in the terrain.
+    /// </summary>
+    /// <param name="newMaterial">The material to apply to all chunks.</param>
+    public void SetMaterial(Material newMaterial)
+    {
+        if (newMaterial == null) return;
+
+        // Store the material reference
+        material = newMaterial;
+
+        // Apply to existing chunks if they exist
+        if (_chunks != null)
+        {
+            foreach (var chunk in _chunks)
+            {
+                if (chunk != null)
+                {
+                    chunk.SetMaterial(material);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates all chunk materials without regenerating terrain.
+    /// </summary>
+    /// <remarks>
+    /// Useful for updating material properties during runtime.
+    /// </remarks>
+    public void UpdateChunkMaterials()
+    {
+        if (material != null && _chunks != null)
+        {
+            foreach (var chunk in _chunks)
+            {
+                if (chunk != null)
+                {
+                    chunk.SetMaterial(material);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Releases allocated buffers and textures when the object is destroyed.
     /// </summary>
     /// 

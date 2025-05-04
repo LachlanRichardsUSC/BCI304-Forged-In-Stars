@@ -1424,7 +1424,7 @@
     "m_Title": "Animated wave noise Normals",
     "m_Position": {
         "x": -1125.0,
-        "y": 146.0
+        "y": 146.00006103515626
     }
 }
 
@@ -3220,8 +3220,8 @@
     "m_ObjectId": "8915815fa11d49e08da713b0e35c5a38",
     "m_Title": "Animated Noise",
     "m_Position": {
-        "x": -963.9999389648438,
-        "y": -347.99993896484377
+        "x": -964.0,
+        "y": -348.0
     }
 }
 
@@ -3677,8 +3677,8 @@
     "m_ObjectId": "9e962e253eef40f7b2cdedc76bbcc689",
     "m_Title": "Smoothness Based on VColors Mask",
     "m_Position": {
-        "x": 115.99996185302735,
-        "y": 696.0
+        "x": 116.0001220703125,
+        "y": 696.0000610351563
     }
 }
 
@@ -4616,7 +4616,7 @@
     "m_ObjectId": "c0ecb2231d0d43b0939a616e6eb743a8",
     "m_Title": "Push Along Normal * VColors Mask",
     "m_Position": {
-        "x": -792.0,
+        "x": -791.9998779296875,
         "y": -763.0
     }
 }
