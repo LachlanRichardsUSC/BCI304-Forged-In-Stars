@@ -26,7 +26,7 @@ Transform:
   m_GameObject: {fileID: 2515148990221847880}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 25.6, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -55,10 +55,10 @@ MonoBehaviour:
   terrainSeed: 1508
   randomizeSeed: 0
   useBlur: 1
-  blurRadius: 3
+  blurRadius: 2
   meshCompute: {fileID: 7200000, guid: f3de4a9b67304314f837c99e785f8d84, type: 3}
   densityCompute: {fileID: 7200000, guid: 41b3a140912596f428d35fbdc01a272b, type: 3}
   blurCompute: {fileID: 7200000, guid: ae1ae60912559604bb90c4ae02c46276, type: 3}
-  material: {fileID: 2100000, guid: ec5979a25bd7c90419164f3fe73a6ea5, type: 2}
+  material: {fileID: 2100000, guid: 4e1ddbbf55c53fe4f9dbe850579a6ede, type: 2}
   flatnessThreshold: 2.8
   detail3DStrength: 0.25
