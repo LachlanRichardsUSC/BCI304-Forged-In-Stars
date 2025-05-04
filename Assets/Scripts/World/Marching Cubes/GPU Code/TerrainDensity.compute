@@ -15,11 +15,13 @@ float planetSize;
 float noiseScale;
 float noiseHeightMultiplier;
 float terrainSeed;
+float borderFalloffStart;
+float borderFalloffSteepness;
+int enableBorderFalloff;
 
 float flatnessThreshold; // Controls how much terrain is flat (0-1)
 float detail3DStrength; // Controls strength of 3D features (0-1)
 
-// Add this to your PlanetMap.compute file
 // Improved FBM function that reduces horizontal artifacts at low noise scales
 
 float fbm(int numLayers, float lacunarity, float persistence, float scale, float3 pos, float seedOffset = 0)
@@ -87,20 +89,34 @@ float calculateDensity(int3 cell)
     // Convert cell position to world space
     float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * planetSize;
     
+    // Calculate distance from edge for XZ border falloff
+    float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
+    float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0; // 0 at center, 1 at edge
+    float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
+    
+    // Create a falloff that starts at a certain distance from the edge
+    float falloffFactor = 1.0;
+    if (enableBorderFalloff != 0) // Check if border falloff is enabled
+    {
+        falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
+        falloffFactor = pow(falloffFactor, borderFalloffSteepness);
+    }
+    
     // 1. Create heightmap-based terrain foundation
     float2 xzPosition = float2(worldPos.x, worldPos.z);
     float terrainHeight = fbm(5, 2.0, 0.5, noiseScale, float3(xzPosition.x, 0, xzPosition.y)) * noiseHeightMultiplier;
+    
+    // Re-center the noise distribution by offsetting terrainHeight
+    terrainHeight = terrainHeight - (noiseHeightMultiplier * 0.5);
     
     // 2. IMPROVED FLATNESS MASK - normalize the noise output
     // Generate base flatness noise
     float rawFlatnessMask = fbm(2, 1.8, 0.4, noiseScale * 0.3, float3(xzPosition.x, 0, xzPosition.y), 500);
     
     // Normalize to ensure better distribution (more values in middle range)
-    // This is key to making the threshold parameter work effectively
     float flatnessMask = smoothstep(0.3, 0.7, rawFlatnessMask);
     
     // Adjust threshold using flatnessThreshold parameter with better scaling
-    // This maps 0-1 slider to a more effective 0.2-0.8 actual range
     float effectiveThreshold = 0.2 + flatnessThreshold * 0.6;
     
     // More prominent flat area effect
@@ -110,7 +126,7 @@ float calculateDensity(int3 cell)
         float smoothFactor = (flatnessMask - effectiveThreshold) / (1.0 - effectiveThreshold);
         smoothFactor = pow(smoothFactor, 0.8); // Less steep curve for better gradient
         
-        // Rest of the flat area smoothing code as before...
+        // Flat area smoothing code
         float smoothedHeight = 0;
         float totalWeight = 0;
         
@@ -123,8 +139,10 @@ float calculateDensity(int3 cell)
                     float2 samplePos = xzPosition + float2(dx, dz) * 5.0;
                     float weight = 1.0 / (1.0 + (abs(dx) + abs(dz)));
                     
+                    // Apply the same offset to sample heights for consistency
                     float sampleHeight = fbm(5, 2.0, 0.5, noiseScale,
                                             float3(samplePos.x, 0, samplePos.y)) * noiseHeightMultiplier;
+                    sampleHeight = sampleHeight - (noiseHeightMultiplier * 0.5);
                     
                     smoothedHeight += sampleHeight * weight;
                     totalWeight += weight;
@@ -135,11 +153,10 @@ float calculateDensity(int3 cell)
         smoothedHeight /= totalWeight;
         terrainHeight = lerp(terrainHeight, smoothedHeight, smoothFactor);
         
-        // Make plateau effect more pronounced
-        float baseHeight = -planetSize * 0.1;
-        float targetFlatHeight = baseHeight + round((terrainHeight - baseHeight) / (noiseHeightMultiplier * 0.2))
-                               * (noiseHeightMultiplier * 0.2);
-        terrainHeight = lerp(terrainHeight, targetFlatHeight, smoothFactor * 0.8); // Increased from 0.7 to 0.8
+        // Make plateau effect more pronounced - adjust for the new centered approach
+        float targetFlatHeight = round(terrainHeight / (noiseHeightMultiplier * 0.2))
+                              * (noiseHeightMultiplier * 0.2);
+        terrainHeight = lerp(terrainHeight, targetFlatHeight, smoothFactor * 0.8);
     }
     
     // 3. Modified 3D feature application to complement flatness effect
@@ -165,17 +182,23 @@ float calculateDensity(int3 cell)
         }
     }
     
-    // 4. Calculate final density
-    float finalHeight = -planetSize * 0.1 + terrainHeight;
+    // Apply border falloff to terrain height
+    terrainHeight *= falloffFactor;
+    
+    // 4. Calculate final density with the modified height
+    float baseHeight = 0.0;
+    float finalHeight = baseHeight + terrainHeight;
+    
     float heightDifference = finalHeight - worldPos.y;
     float gradient = planetSize * 0.03;
     float density = heightDifference / gradient;
     
-    // Add 3D detail
-    density += detail3D;
+    // Add 3D detail with falloff applied
+    density += detail3D * falloffFactor;
     
     return density;
 }
+
 
 [numthreads(8, 8, 8)]
 void CSMain(int3 id : SV_DispatchThreadID)
@@ -188,21 +211,22 @@ void CSMain(int3 id : SV_DispatchThreadID)
 
     float density;
 
-    // Keep bottom solid to prevent holes
+    // Keep bottom solid for stability
     if (id.y <= borderWidth)
     {
-        density = 5.0; // Definitely solid (ground)
+        density = 5.0; // Solid density
     }
-    // Force top region to be air to prevent ceiling
+    // Keep very top as air
     else if (id.y >= textureSize - borderWidth)
     {
-        density = -5.0; // Definitely air
+        density = -5.0; // Air density
     }
     else
     {
+        // Normal terrain generation with border falloff applied
         density = calculateDensity(id);
     }
 
-    // Store the calculated density value
+    // Store calculated density
     DensityTexture[id] = density;
 }

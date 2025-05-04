@@ -83,8 +83,7 @@ public class Chunk
         else
         {
             _mesh.SetNormals(_processedNormals);
-            // Add optional smoothing for heightmap terrain
-            // SmoothNormals(); // Uncomment this if you add the method above
+            
         }
 
         // Clear previous mesh data
@@ -140,68 +139,6 @@ public class Chunk
         _collider.sharedMesh = _mesh;
     }
 
-    private void SmoothNormals()
-    {
-        // Create a dictionary to store all normals at each unique position
-        Dictionary<Vector3, List<Vector3>> normalLookup = new Dictionary<Vector3, List<Vector3>>();
-
-        // First pass: collect all normals at each unique position
-        for (int i = 0; i < _processedVertices.Count; i++)
-        {
-            Vector3 position = _processedVertices[i];
-            Vector3 normal = _processedNormals[i];
-
-            if (normalLookup.ContainsKey(position))
-            {
-                normalLookup[position].Add(normal);
-            }
-            else
-            {
-                normalLookup.Add(position, new List<Vector3> { normal });
-            }
-        }
-
-        // Second pass: average normals at each position
-        foreach (var key in normalLookup.Keys.ToList())
-        {
-            Vector3 averagedNormal = Vector3.zero;
-            foreach (var normal in normalLookup[key])
-            {
-                averagedNormal += normal;
-            }
-
-            // Normalize and ensure upward component
-            if (averagedNormal.magnitude > 0.001f)
-            {
-                averagedNormal.Normalize();
-
-                // For terrain, ensure a minimum upward component
-                if (averagedNormal.y < 0.2f)
-                {
-                    averagedNormal.y = 0.2f;
-                    averagedNormal.Normalize();
-                }
-            }
-            else
-            {
-                // If no meaningful normal, use up vector
-                averagedNormal = Vector3.up;
-            }
-
-            normalLookup[key] = new List<Vector3> { averagedNormal };
-        }
-
-        // Final pass: apply smoothed normals
-        for (int i = 0; i < _processedVertices.Count; i++)
-        {
-            Vector3 position = _processedVertices[i];
-            if (normalLookup.ContainsKey(position))
-            {
-                _processedNormals[i] = normalLookup[position][0];
-            }
-        }
-    }
-
     /// <summary>
     /// Sets the material for the chunk's renderer.
     /// </summary>
@@ -210,6 +147,18 @@ public class Chunk
     {
         if (material == null) return;
         _renderer.material = material;
+    }
+
+    /// <summary>
+    /// Sets the mesh's layer to Ground for interaction with the player character.
+    /// </summary>
+    /// <param name="layerIndex"></param>
+    public void SetLayer(int layerIndex)
+    {
+        if (gameObject != null)
+        {
+            gameObject.layer = layerIndex;
+        }
     }
 
     /// <summary>

@@ -72,6 +72,7 @@ Material:
     - _SideTiling: 0.5
     - _SlopeEnd: 1
     - _SlopeStart: 0.5
+    - _Smoothness: 0.2
     - _SteepMetallic: 0
     - _SteepSmoothness: 0
     - _SteepTiling: 0.1
@@ -79,9 +80,9 @@ Material:
     - _TopSmoothness: 0
     - _TopTiling: 0.1
     m_Colors:
-    - _SideColour: {r: 1, g: 1, b: 1, a: 0}
+    - _SideColour: {r: 1, g: 0.827451, b: 0.627451, a: 0}
     - _SteepColour: {r: 1, g: 1, b: 1, a: 0}
-    - _TopColour: {r: 1, g: 1, b: 1, a: 0}
+    - _TopColour: {r: 1, g: 0.9070357, b: 0.759434, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &7478027994724333232

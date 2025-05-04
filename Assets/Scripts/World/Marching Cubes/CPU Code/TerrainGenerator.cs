@@ -20,8 +20,8 @@ public class TerrainGenerator : MonoBehaviour
     [Header("Noise Settings")]
     [SerializeField] private float noiseScale = 1.5f;
     [SerializeField] private float noiseHeightMultiplier = 0.5f;
-    [SerializeField] private int terrainSeed = 0; // Add this line
-    [SerializeField] private bool randomizeSeed = false; // Add this line
+    [SerializeField] private int terrainSeed = 0; 
+    [SerializeField] private bool randomizeSeed = false; 
 
     [Header("Blur Settings")]
     [SerializeField] private bool useBlur = true;
@@ -32,10 +32,16 @@ public class TerrainGenerator : MonoBehaviour
     [SerializeField] private ComputeShader densityCompute;
     [SerializeField] private ComputeShader blurCompute;
     [SerializeField] private Material material;
+    [SerializeField] private string groundLayerName = "Ground";
 
     [Header("Terrain Zones")]
     [SerializeField][Range(0.0f, 1.0f)] private float flatnessThreshold = 0.4f;
     [SerializeField][Range(0.0f, 1.0f)] private float detail3DStrength = 0.2f;
+
+    [Header("Border Falloff")]
+    [SerializeField][Range(0.0f, 1.0f)] private float borderFalloffStart = 0.3f;
+    [SerializeField][Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
+    [SerializeField] private bool enableBorderFalloff = true;
 
     // Public properties for external access
     public int NumPointsPerAxis => numPointsPerAxis;
@@ -148,6 +154,11 @@ public class TerrainGenerator : MonoBehaviour
         densityCompute.SetFloat("flatnessThreshold", flatnessThreshold);
         densityCompute.SetFloat("detail3DStrength", detail3DStrength);
 
+        // Add border falloff parameters
+        densityCompute.SetFloat("borderFalloffStart", borderFalloffStart);
+        densityCompute.SetFloat("borderFalloffSteepness", borderFalloffSteepness);
+        densityCompute.SetInt("enableBorderFalloff", enableBorderFalloff ? 1 : 0);
+
         // Set texture using index 0 directly
         densityCompute.SetTexture(0, "DensityTexture", _densityTexture);
 
@@ -219,13 +230,16 @@ public class TerrainGenerator : MonoBehaviour
     /// </summary>
     void CreateChunks()
     {
-        // For flat terrain, we want more chunks horizontally and fewer vertically
-        int chunksY = Mathf.Max(1, numChunks / 2); // Fewer vertical chunks
-        int chunksXZ = numChunks;                  // Same horizontal chunks
+
+        int chunksY = 10;
+        // int chunksY = numChunks;
+        int chunksXZ = numChunks;
+        int groundLayer = LayerMask.NameToLayer(groundLayerName);
 
         _chunks = new Chunk[chunksXZ * chunksY * chunksXZ];
         float chunkSize = boundsSize / numChunks;
         int i = 0;
+        
 
         for (int y = 0; y < chunksY; y++)
         {
@@ -234,23 +248,21 @@ public class TerrainGenerator : MonoBehaviour
                 for (int z = 0; z < chunksXZ; z++)
                 {
                     Vector3Int coord = new Vector3Int(x, y, z);
-
-                    // Adjusted center calculation - keep terrain in view
                     Vector3 centre = new Vector3(
                         (-(chunksXZ - 1f) / 2 + x) * chunkSize,
-                        // Place chunks with y=0 at or slightly below center
-                        -chunkSize + y * chunkSize,
+                        (-(chunksY - 1f) / 2 + y) * chunkSize,  // Center chunks around Y=0
                         (-(chunksXZ - 1f) / 2 + z) * chunkSize
                     );
 
                     GameObject meshHolder = new GameObject($"Chunk ({x}, {y}, {z})")
                     {
                         transform = { parent = transform },
-                        layer = gameObject.layer
+                        layer = groundLayer
                     };
 
                     Chunk chunk = new Chunk(coord, centre, chunkSize, meshHolder);
                     chunk.SetMaterial(material);
+
                     _chunks[i] = chunk;
                     i++;
                 }
