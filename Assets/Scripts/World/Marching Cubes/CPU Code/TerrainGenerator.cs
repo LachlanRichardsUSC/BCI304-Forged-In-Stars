@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+
 using UnityEngine;
 
 /// <summary>
@@ -96,8 +97,18 @@ public class TerrainGenerator : MonoBehaviour
     private System.Diagnostics.Stopwatch _timerGeneration;
     private bool _initialized = false;
 
-    // Spatial lookup for chunk optimization
+    // Spatial partitioning for efficient chunk lookup
     private Dictionary<Vector3Int, Chunk> _chunkLookup;
+
+    // Spatial hash for fast radius queries
+    private Dictionary<Vector3Int, List<Chunk>> _spatialHash;
+    private float _spatialCellSize = 100f; // Size of each spatial hash cell
+
+    // Debug visualization
+    [Header("Debug")]
+    [SerializeField] private bool debugVisualization = false;
+    private HashSet<Vector3Int> _lastCheckedCells;
+    private int _lastTotalChunksChecked;
 
     #endregion
 
@@ -174,6 +185,10 @@ public class TerrainGenerator : MonoBehaviour
             terrainSeed = Random.Range(0, 10000);
             Debug.Log($"Using random terrain seed: {terrainSeed}");
         }
+
+        // Initialize spatial hash
+        _spatialCellSize = boundsSize / (numChunks * 0.5f); // Size calibrated to chunk dimensions
+        _spatialHash = new Dictionary<Vector3Int, List<Chunk>>();
 
         InitTextures();
         CreateBuffers();
@@ -270,10 +285,68 @@ public class TerrainGenerator : MonoBehaviour
                     // Store chunk references
                     _chunks[index] = chunk;
                     _chunkLookup[coord] = chunk;
+
+                    // Add to spatial hash
+                    AddChunkToSpatialHash(chunk);
+
                     index++;
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Adds a chunk to the spatial hash system for efficient spatial queries.
+    /// </summary>
+    /// <param name="chunk">The chunk to add to the spatial hash.</param>
+    private void AddChunkToSpatialHash(Chunk chunk)
+    {
+        // Get the spatial cell coordinate for this chunk
+        Vector3Int cell = WorldToSpatialCell(chunk.Centre);
+
+        // Create list for this cell if it doesn't exist
+        if (!_spatialHash.TryGetValue(cell, out var chunks))
+        {
+            chunks = new List<Chunk>();
+            _spatialHash[cell] = chunks;
+        }
+
+        // Add chunk to the appropriate cell
+        chunks.Add(chunk);
+    }
+
+    /// <summary>
+    /// Removes a chunk from the spatial hash system.
+    /// </summary>
+    /// <param name="chunk">The chunk to remove from the spatial hash.</param>
+    private void RemoveChunkFromSpatialHash(Chunk chunk)
+    {
+        Vector3Int cell = WorldToSpatialCell(chunk.Centre);
+
+        if (_spatialHash.TryGetValue(cell, out var chunks))
+        {
+            chunks.Remove(chunk);
+
+            // Remove the cell entirely if empty
+            if (chunks.Count == 0)
+            {
+                _spatialHash.Remove(cell);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Converts a world position to a spatial hash cell coordinate.
+    /// </summary>
+    /// <param name="worldPos">The world position to convert.</param>
+    /// <returns>The spatial hash cell coordinate.</returns>
+    private Vector3Int WorldToSpatialCell(Vector3 worldPos)
+    {
+        return new Vector3Int(
+            Mathf.FloorToInt(worldPos.x / _spatialCellSize),
+            Mathf.FloorToInt(worldPos.y / _spatialCellSize),
+            Mathf.FloorToInt(worldPos.z / _spatialCellSize)
+        );
     }
 
     /// <summary>
@@ -501,8 +574,11 @@ public class TerrainGenerator : MonoBehaviour
             return;
         }
 
+        System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+
         // Find chunks affected by the explosion
         List<Chunk> affectedChunks = FindChunksInRadius(worldPosition, radius);
+        timer.Stop();
 
         if (affectedChunks.Count == 0)
         {
@@ -511,6 +587,17 @@ public class TerrainGenerator : MonoBehaviour
         }
 
         // Apply explosion to density texture
+        Vector3Int minCell = WorldToSpatialCell(worldPosition - new Vector3(radius, radius, radius));
+        Vector3Int maxCell = WorldToSpatialCell(worldPosition + new Vector3(radius, radius, radius));
+
+        // Log performance data
+        Debug.Log($"Explosion at {worldPosition}, radius {radius}:");
+        Debug.Log($"- Found {affectedChunks.Count} affected chunks out of {_chunks.Length} total");
+        Debug.Log($"- Last chunks checked: {_lastTotalChunksChecked}");
+        Debug.Log($"- Query time: {timer.ElapsedMilliseconds}ms");
+        Debug.Log($"- Spatial region: From {minCell} to {maxCell}");
+        Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {boundsSize / numChunks}");
+
         ApplyExplosionToDensity(worldPosition, radius, strength);
 
         // Regenerate only affected chunks for better performance
@@ -577,6 +664,13 @@ public class TerrainGenerator : MonoBehaviour
             _chunkLookup = null;
         }
 
+        // Clear spatial hash
+        if (_spatialHash != null)
+        {
+            _spatialHash.Clear();
+            _spatialHash = null;
+        }
+
         // Clear large arrays
         _vertexDataArray = null;
 
@@ -586,57 +680,70 @@ public class TerrainGenerator : MonoBehaviour
 
     /// <summary>
     /// Finds all chunks that intersect with a sphere defined by center and radius.
-    /// Optimized to only check relevant chunks.
+    /// Uses spatial hash for efficient O(k) lookup where k is the number of relevant chunks.
     /// </summary>
     /// <param name="center">The center of the sphere in world space.</param>
     /// <param name="radius">The radius of the sphere.</param>
     /// <returns>A list of chunks that intersect with the sphere.</returns>
     private List<Chunk> FindChunksInRadius(Vector3 center, float radius)
     {
+        // Use spatial hash for efficient lookup
         List<Chunk> affectedChunks = new List<Chunk>();
         float sqrRadius = radius * radius;
 
-        // Calculate the approximate chunk coordinates that might be affected
-        float chunkSize = boundsSize / numChunks;
-        float halfSize = boundsSize * 0.5f;
+        // Track performance metrics
+        int chunkCheckCount = 0;
+        _lastCheckedCells = new HashSet<Vector3Int>();
 
-        // Calculate the min and max chunk coordinates that could be affected
-        Vector3Int minChunkCoord = new Vector3Int(
-            Mathf.Max(0, Mathf.FloorToInt((center.x - radius + halfSize) / chunkSize)),
-            Mathf.Max(0, Mathf.FloorToInt((center.y - radius + halfSize) / chunkSize)),
-            Mathf.Max(0, Mathf.FloorToInt((center.z - radius + halfSize) / chunkSize))
-        );
+        // Calculate the min and max cell coordinates that could be affected
+        Vector3Int minCellCoord = WorldToSpatialCell(center - new Vector3(radius, radius, radius));
+        Vector3Int maxCellCoord = WorldToSpatialCell(center + new Vector3(radius, radius, radius));
 
-        Vector3Int maxChunkCoord = new Vector3Int(
-            Mathf.Min(numChunks - 1, Mathf.CeilToInt((center.x + radius + halfSize) / chunkSize - 1)),
-            Mathf.Min(numChunks - 1, Mathf.CeilToInt((center.y + radius + halfSize) / chunkSize - 1)),
-            Mathf.Min(numChunks - 1, Mathf.CeilToInt((center.z + radius + halfSize) / chunkSize - 1))
-        );
+        // Track chunks we've already checked to avoid duplicates (chunks can appear in multiple cells)
+        HashSet<Chunk> checkedChunks = new HashSet<Chunk>();
 
-        // Only check chunks that might be affected
-        for (int x = minChunkCoord.x; x <= maxChunkCoord.x; x++)
+        // Only check cells that might be affected
+        for (int x = minCellCoord.x; x <= maxCellCoord.x; x++)
         {
-            for (int y = minChunkCoord.y; y <= maxChunkCoord.y; y++)
+            for (int y = minCellCoord.y; y <= maxCellCoord.y; y++)
             {
-                for (int z = minChunkCoord.z; z <= maxChunkCoord.z; z++)
+                for (int z = minCellCoord.z; z <= maxCellCoord.z; z++)
                 {
-                    Vector3Int coord = new Vector3Int(x, y, z);
+                    Vector3Int cellCoord = new Vector3Int(x, y, z);
+                    _lastCheckedCells.Add(cellCoord); // Track for visualization
 
-                    // Use dictionary lookup for better performance
-                    if (_chunkLookup.TryGetValue(coord, out Chunk chunk))
+                    // Check if this cell contains any chunks
+                    if (_spatialHash.TryGetValue(cellCoord, out var chunksInCell))
                     {
-                        // Calculate the closest point on the chunk to the explosion center
-                        Vector3 closestPoint = GetClosestPointOnChunk(chunk, center);
-
-                        // Check if this closest point is within explosion radius
-                        if ((center - closestPoint).sqrMagnitude <= sqrRadius)
+                        foreach (var chunk in chunksInCell)
                         {
-                            affectedChunks.Add(chunk);
+                            // Skip if we've already checked this chunk
+                            if (checkedChunks.Contains(chunk))
+                                continue;
+
+                            checkedChunks.Add(chunk);
+                            chunkCheckCount++; // Count total chunks examined
+
+                            // Calculate the closest point on the chunk to the explosion center
+                            Vector3 closestPoint = GetClosestPointOnChunk(chunk, center);
+
+                            // Check if this closest point is within explosion radius
+                            if ((center - closestPoint).sqrMagnitude <= sqrRadius)
+                            {
+                                affectedChunks.Add(chunk);
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Store performance metric
+        _lastTotalChunksChecked = chunkCheckCount;
+
+        // Log spatial query statistics
+        Debug.Log($"Spatial query stats: Checked {chunkCheckCount} chunks across {_lastCheckedCells.Count} cells " +
+                 $"out of {_chunks.Length} total chunks");
 
         return affectedChunks;
     }
@@ -738,6 +845,40 @@ public class TerrainGenerator : MonoBehaviour
             yield return null;
         }
     }
+    private void OnDrawGizmos()
+    {
+        // Only draw in play mode when debugging is enabled
+        if (!Application.isPlaying || !debugVisualization)
+            return;
 
-    #endregion
+        // Draw chunk boundaries
+        if (_chunks != null)
+        {
+            Gizmos.color = Color.blue;
+            foreach (var chunk in _chunks)
+            {
+                if (chunk != null)
+                    chunk.DrawBoundsGizmo(Color.blue);
+            }
+        }
+
+        // Draw spatial hash cells that were checked in the last explosion
+        if (_lastCheckedCells != null)
+        {
+            Gizmos.color = new Color(1f, 1f, 0f, 1f); // Semi-transparent yellow
+
+            foreach (var cell in _lastCheckedCells)
+            {
+                Vector3 cellCenter = new Vector3(
+                    (cell.x + 0.5f) * _spatialCellSize,
+                    (cell.y + 0.5f) * _spatialCellSize,
+                    (cell.z + 0.5f) * _spatialCellSize
+                );
+
+                Gizmos.DrawWireCube(cellCenter, Vector3.one * _spatialCellSize);
+            }
+        }
+
+    }
 }
+#endregion
