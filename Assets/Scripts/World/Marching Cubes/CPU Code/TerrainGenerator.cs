@@ -564,7 +564,7 @@ public class TerrainGenerator : MonoBehaviour
         RegenerateTerrainRuntime();
     }
 
-    /// <summary>
+    // <summary>
     /// Creates an explosion effect that modifies the terrain density at the specified position.
     /// </summary>
     /// <param name="worldPosition">Position in world space where the explosion should occur.</param>
@@ -589,6 +589,21 @@ public class TerrainGenerator : MonoBehaviour
             Debug.LogWarning($"Explosion at {worldPosition} with radius {radius} did not affect any chunks.");
             return;
         }
+
+        // Calculate texture space coordinates for debug logging
+        Vector3 normalizedPos = (worldPosition / boundsSize) + new Vector3(0.5f, 0.5f, 0.5f);
+        Vector3 texturePos = normalizedPos * _textureSize;
+        float textureRadius = radius / boundsSize * _textureSize;
+        Vector3Int minBound = Vector3Int.FloorToInt(texturePos - new Vector3(textureRadius, textureRadius, textureRadius));
+        Vector3Int maxBound = Vector3Int.CeilToInt(texturePos + new Vector3(textureRadius, textureRadius, textureRadius));
+        minBound = Vector3Int.Max(Vector3Int.zero, minBound);
+        maxBound = Vector3Int.Min(new Vector3Int(_textureSize - 1, _textureSize - 1, _textureSize - 1), maxBound);
+        int sizeX = maxBound.x - minBound.x + 1;
+        int sizeY = maxBound.y - minBound.y + 1;
+        int sizeZ = maxBound.z - minBound.z + 1;
+
+        // Add the debug log
+        Debug.Log($"Explosion at {worldPosition} with radius {radius} affecting {affectedChunks.Count} chunks. Region size: {sizeX}x{sizeY}x{sizeZ}");
 
         // Apply explosion to density texture
         Vector3Int minCell = WorldToSpatialCell(worldPosition - new Vector3(radius, radius, radius));
