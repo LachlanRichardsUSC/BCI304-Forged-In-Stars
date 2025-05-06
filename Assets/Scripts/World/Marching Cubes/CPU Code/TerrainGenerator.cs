@@ -230,28 +230,28 @@ public class TerrainGenerator : MonoBehaviour
     /// </summary>
     void CreateChunks()
     {
-
-        int chunksY = 10;
-        // int chunksY = numChunks;
-        int chunksXZ = numChunks;
+        // Use the same number of chunks in all dimensions
+        int chunksPerAxis = numChunks;
         int groundLayer = LayerMask.NameToLayer(groundLayerName);
 
-        _chunks = new Chunk[chunksXZ * chunksY * chunksXZ];
-        float chunkSize = boundsSize / numChunks;
+        // Allocate array for all chunks
+        _chunks = new Chunk[chunksPerAxis * chunksPerAxis * chunksPerAxis];
+        float chunkSize = boundsSize / chunksPerAxis;
         int i = 0;
 
-
-        for (int y = 0; y < chunksY; y++)
+        for (int y = 0; y < chunksPerAxis; y++)
         {
-            for (int x = 0; x < chunksXZ; x++)
+            for (int x = 0; x < chunksPerAxis; x++)
             {
-                for (int z = 0; z < chunksXZ; z++)
+                for (int z = 0; z < chunksPerAxis; z++)
                 {
                     Vector3Int coord = new Vector3Int(x, y, z);
+
+                    // Center chunks around origin (0,0,0)
                     Vector3 centre = new Vector3(
-                        (-(chunksXZ - 1f) / 2 + x) * chunkSize,
-                        (-(chunksY - 1f) / 2 + y) * chunkSize,  // Center chunks around Y=0
-                        (-(chunksXZ - 1f) / 2 + z) * chunkSize
+                        (-(chunksPerAxis - 1f) / 2 + x) * chunkSize,
+                        (-(chunksPerAxis - 1f) / 2 + y) * chunkSize,
+                        (-(chunksPerAxis - 1f) / 2 + z) * chunkSize
                     );
 
                     GameObject meshHolder = new GameObject($"Chunk ({x}, {y}, {z})")
