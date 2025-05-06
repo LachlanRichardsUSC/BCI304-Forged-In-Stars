@@ -27,14 +27,14 @@ RWTexture3D<float> DensityTexture;
 // Parameters
 int textureSize;
 int numPointsPerAxis;
-float planetSize;
+float boundsSize;
 float isoLevel;
 float3 chunkCoord;
 
 // Convert grid coordinates to world position
 float3 coordToWorld(int3 coord)
 {
-    return (coord / (textureSize - 1.0f) - 0.5f) * planetSize;
+    return (coord / (textureSize - 1.0f) - 0.5f) * boundsSize;
 }
 
 // Get point index in the chunk

@@ -1,7 +1,3 @@
-// Density.compute: A compute shader that generates a 3D density texture for procedural terrain using noise.
-// The shader computes density values based on a combination of a spherical base field and Fractal Brownian Motion (FBM) noise.
-// The resulting density values are stored in a 3D texture, which is used for terrain generation with the marching cubes algorithm.
-
 #pragma kernel CSMain
 #include "Noise.hlsl"
 
@@ -11,7 +7,7 @@ int textureSize;
 int borderWidth;
 
 // Generation parameters
-float planetSize;
+float boundsSize;
 float noiseScale;
 float noiseHeightMultiplier;
 float terrainSeed;
@@ -21,6 +17,10 @@ int enableBorderFalloff;
 
 float flatnessThreshold; // Controls how much terrain is flat (0-1)
 float detail3DStrength; // Controls strength of 3D features (0-1)
+
+// Added curve adjustment parameters
+float flatAreaCurve = 0.8; // Controls flatness transition curve
+float detailAreaCurve = 0.7; // Controls detail transition curve
 
 // Improved FBM function that reduces horizontal artifacts at low noise scales
 
@@ -87,7 +87,7 @@ float fbm(int numLayers, float lacunarity, float persistence, float scale, float
 float calculateDensity(int3 cell)
 {
     // Convert cell position to world space
-    float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * planetSize;
+    float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * boundsSize;
     
     // Calculate distance from edge for XZ border falloff
     float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
@@ -99,7 +99,8 @@ float calculateDensity(int3 cell)
     if (enableBorderFalloff != 0) // Check if border falloff is enabled
     {
         falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
-        falloffFactor = pow(falloffFactor, borderFalloffSteepness);
+        // Fix for pow() warning - ensure base is non-negative
+        falloffFactor = pow(max(0.0, falloffFactor), borderFalloffSteepness);
     }
     
     // 1. Create heightmap-based terrain foundation
@@ -124,7 +125,8 @@ float calculateDensity(int3 cell)
     {
         // Calculate smoothing factor with more dramatic effect
         float smoothFactor = (flatnessMask - effectiveThreshold) / (1.0 - effectiveThreshold);
-        smoothFactor = pow(smoothFactor, 0.8); // Less steep curve for better gradient
+        // Fix for pow() warning - ensure base is non-negative
+        smoothFactor = pow(max(0.0, smoothFactor), flatAreaCurve); // Using parameter instead of hardcoded 0.8
         
         // Flat area smoothing code
         float smoothedHeight = 0;
@@ -166,7 +168,8 @@ float calculateDensity(int3 cell)
     if (flatnessMask < (1.0 - effectiveThreshold * 0.5))
     {
         float nonFlatFactor = 1.0 - (flatnessMask / (1.0 - effectiveThreshold * 0.5));
-        nonFlatFactor = pow(nonFlatFactor, 0.7); // Adjust curve for better effect
+        // Fix for pow() warning - ensure base is non-negative
+        nonFlatFactor = pow(max(0.0, nonFlatFactor), detailAreaCurve); // Using parameter instead of hardcoded 0.7
         
         // Use detail3DStrength parameter to control 3D feature intensity
         detail3D = fbm(4, 2.1, 0.5, noiseScale * 2.5, worldPos, 100)
@@ -190,7 +193,7 @@ float calculateDensity(int3 cell)
     float finalHeight = baseHeight + terrainHeight;
     
     float heightDifference = finalHeight - worldPos.y;
-    float gradient = planetSize * 0.03;
+    float gradient = boundsSize * 0.03;
     float density = heightDifference / gradient;
     
     // Add 3D detail with falloff applied

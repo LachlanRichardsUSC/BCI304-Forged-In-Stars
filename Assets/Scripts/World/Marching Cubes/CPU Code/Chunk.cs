@@ -76,16 +76,6 @@ public class Chunk
     /// <param name="useFlatShading">Indicates whether flat shading should be used.</param>
     public void CreateMesh(VertexData[] vertexData, int numVertices, bool useFlatShading)
     {
-        if (useFlatShading)
-        {
-            _mesh.RecalculateNormals();
-        }
-        else
-        {
-            _mesh.SetNormals(_processedNormals);
-            
-        }
-
         // Clear previous mesh data
         _vertexIndexMap.Clear();
         _processedVertices.Clear();
@@ -118,9 +108,6 @@ public class Chunk
             }
         }
 
-        // Temporarily remove collider for mesh updates
-        _collider.sharedMesh = null;
-
         // Update mesh
         _mesh.Clear();
         _mesh.SetVertices(_processedVertices);
@@ -135,8 +122,24 @@ public class Chunk
             _mesh.SetNormals(_processedNormals);
         }
 
-        // Reapply collider
-        _collider.sharedMesh = _mesh;
+        // Only apply the collider AFTER updating the mesh
+        // AND only if there are vertices
+        if (_processedVertices.Count > 0)
+        {
+            _collider.sharedMesh = _mesh;
+            _renderer.enabled = true; // Explicitly enable
+        }
+        else
+        {
+            _collider.sharedMesh = null;
+
+            // Keep renderer enabled unless we're confident there's no geometry
+            // When higher resolution is used, disabling can be problematic
+            if (numVertices == 0 && _renderer != null)
+            {
+                _renderer.enabled = false;
+            }
+        }
     }
 
     /// <summary>
@@ -166,10 +169,42 @@ public class Chunk
     /// </summary>
     public void Release()
     {
+        // Clear collections to help GC
+        if (_vertexIndexMap != null)
+        {
+            _vertexIndexMap.Clear();
+            _vertexIndexMap = null;
+        }
+
+        if (_processedVertices != null)
+        {
+            _processedVertices.Clear();
+            _processedVertices = null;
+        }
+
+        if (_processedNormals != null)
+        {
+            _processedNormals.Clear();
+            _processedNormals = null;
+        }
+
+        if (_processedTriangles != null)
+        {
+            _processedTriangles.Clear();
+            _processedTriangles = null;
+        }
+
+        // Clean up mesh
         if (_mesh != null)
         {
+            _mesh.Clear();
             Object.Destroy(_mesh);
+            _mesh = null;
         }
+
+        // Clear renderer references
+        _renderer = null;
+        _collider = null;
     }
 
     /// <summary>
@@ -182,5 +217,5 @@ public class Chunk
         Gizmos.DrawWireCube(_centre, Vector3.one * _size);
     }
 
-    
+
 }

@@ -1,0 +1,52 @@
+#pragma kernel CSMain
+RWTexture3D<float> DensityTexture;
+float3 explosionCenter;
+float radius;
+float strength;
+int textureSize;
+float boundsSize;
+float isoLevel;
+float3 regionMin;
+float3 regionMax;
+
+[numthreads(8, 8, 8)]
+void CSMain(int3 id : SV_DispatchThreadID)
+{
+    // Calculate actual texture coordinates by offsetting with regionMin
+    int3 texCoord = id + int3(regionMin);
+    
+    // Skip if outside texture bounds or region bounds
+    if (any(texCoord >= textureSize) || any(texCoord < 0))
+        return;
+    
+    // Calculate position in world space using texCoord (not id)
+    float3 worldPos = (float3(texCoord) / (textureSize - 1.0) - 0.5) * boundsSize;
+    float3 explosionWorldPos = (explosionCenter / (textureSize - 1.0) - 0.5) * boundsSize;
+    
+    // Calculate distance from explosion center
+    float dist = length(worldPos - explosionWorldPos);
+    
+    if (dist < radius)
+    {
+        // Normalize distance for falloff
+        float normalizedDist = dist / radius;
+        
+        // Get current density using texCoord
+        float currentDensity = DensityTexture[texCoord];
+        
+        // Simple quadratic falloff
+        float weight = (1.0 - normalizedDist) * (1.0 - normalizedDist);
+        
+        // Different effect based on if in solid or air
+        if (currentDensity > (isoLevel - 0.05)) // Slightly lower threshold for explosion effect
+        {
+    // More consistent crater creation
+            float actualStrength = strength * (0.8 + 0.4 * (1.0 - normalizedDist));
+            DensityTexture[texCoord] = currentDensity - actualStrength;
+        }
+        else // In air
+        {
+            // No effect in air to prevent creating new terrain
+        }
+    }
+}

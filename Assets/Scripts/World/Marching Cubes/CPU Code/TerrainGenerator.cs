@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -20,17 +21,18 @@ public class TerrainGenerator : MonoBehaviour
     [Header("Noise Settings")]
     [SerializeField] private float noiseScale = 1.5f;
     [SerializeField] private float noiseHeightMultiplier = 0.5f;
-    [SerializeField] private int terrainSeed = 0; 
-    [SerializeField] private bool randomizeSeed = false; 
+    [SerializeField] private int terrainSeed = 0;
+    [SerializeField] private bool randomizeSeed = false;
 
     [Header("Blur Settings")]
     [SerializeField] private bool useBlur = true;
-    [SerializeField] [Range(1, 5)] private int blurRadius = 1;
+    [SerializeField][Range(1, 5)] private int blurRadius = 1;
 
     [Header("References")]
     [SerializeField] private ComputeShader meshCompute;
     [SerializeField] private ComputeShader densityCompute;
     [SerializeField] private ComputeShader blurCompute;
+    [SerializeField] private ComputeShader explosionCompute;
     [SerializeField] private Material material;
     [SerializeField] private string groundLayerName = "Ground";
 
@@ -47,6 +49,7 @@ public class TerrainGenerator : MonoBehaviour
     public int NumPointsPerAxis => numPointsPerAxis;
     public float BoundsSize => boundsSize;
     public RenderTexture DensityTexture => _densityTexture;
+    public RenderTexture BlurredDensityTexture => _blurredDensityTexture;
     public Chunk[] Chunks => _chunks;
 
     private ComputeBuffer _triangleBuffer;
@@ -63,12 +66,9 @@ public class TerrainGenerator : MonoBehaviour
     /// </summary>
     void Start()
     {
-       
-
         InitTextures();
         CreateBuffers();
         CreateChunks();
-
 
         _timerGeneration = System.Diagnostics.Stopwatch.StartNew();
         GenerateAllChunks();
@@ -145,7 +145,7 @@ public class TerrainGenerator : MonoBehaviour
 
         // Set parameters
         densityCompute.SetInt("textureSize", textureSize);
-        densityCompute.SetFloat("planetSize", boundsSize);
+        densityCompute.SetFloat("boundsSize", boundsSize);
         densityCompute.SetFloat("noiseHeightMultiplier", noiseHeightMultiplier);
         densityCompute.SetFloat("noiseScale", noiseScale);
         densityCompute.SetInt("borderWidth", borderWidth);
@@ -187,7 +187,7 @@ public class TerrainGenerator : MonoBehaviour
         meshCompute.SetInt("textureSize", _densityTexture.width);
         meshCompute.SetInt("numPointsPerAxis", numPointsPerAxis);
         meshCompute.SetFloat("isoLevel", isoLevel);
-        meshCompute.SetFloat("planetSize", boundsSize);
+        meshCompute.SetFloat("boundsSize", boundsSize);
 
         _triangleBuffer.SetCounterValue(0);
         meshCompute.SetBuffer(0, "triangles", _triangleBuffer);
@@ -239,7 +239,7 @@ public class TerrainGenerator : MonoBehaviour
         _chunks = new Chunk[chunksXZ * chunksY * chunksXZ];
         float chunkSize = boundsSize / numChunks;
         int i = 0;
-        
+
 
         for (int y = 0; y < chunksY; y++)
         {
@@ -279,7 +279,7 @@ public class TerrainGenerator : MonoBehaviour
     void Create3DTexture(ref RenderTexture texture, int size, string densityTexture)
     {
         var format = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SFloat;
-        if (texture == null || !texture.IsCreated() || texture.width != size || 
+        if (texture == null || !texture.IsCreated() || texture.width != size ||
             texture.height != size || texture.volumeDepth != size || texture.graphicsFormat != format)
         {
             texture?.Release();
@@ -348,13 +348,39 @@ public class TerrainGenerator : MonoBehaviour
 
     void OnDestroy()
     {
+        // Release compute buffers
         ComputeHelper.Release(_triangleBuffer, _triCountBuffer);
-        _blurredDensityTexture?.Release();
+        _triangleBuffer = null;
+        _triCountBuffer = null;
 
-        foreach (Chunk chunk in _chunks)
+        // Release render textures
+        if (_densityTexture != null)
         {
-            chunk.Release();
+            _densityTexture.Release();
+            _densityTexture = null;
         }
+
+        if (_blurredDensityTexture != null)
+        {
+            _blurredDensityTexture.Release();
+            _blurredDensityTexture = null;
+        }
+
+        // Release all chunks
+        if (_chunks != null)
+        {
+            foreach (Chunk chunk in _chunks)
+            {
+                if (chunk != null)
+                {
+                    chunk.Release();
+                }
+            }
+            _chunks = null;
+        }
+
+        // Clear large arrays
+        _vertexDataArray = null;
     }
 
     public void RegenerateTerrainRuntime()
@@ -379,6 +405,19 @@ public class TerrainGenerator : MonoBehaviour
         // Release compute buffers
         ComputeHelper.Release(_triangleBuffer, _triCountBuffer);
 
+        // NEW: Explicitly release textures
+        if (_densityTexture != null)
+        {
+            _densityTexture.Release();
+            _densityTexture = null;
+        }
+
+        if (_blurredDensityTexture != null)
+        {
+            _blurredDensityTexture.Release();
+            _blurredDensityTexture = null;
+        }
+
         // Re-initialize
         InitTextures();
         CreateBuffers();
@@ -399,6 +438,168 @@ public class TerrainGenerator : MonoBehaviour
     {
         terrainSeed = newSeed;
         RegenerateTerrainRuntime();
+    }
+
+    /// <summary>
+    /// Creates an explosion effect that modifies the terrain density at the specified position
+    /// </summary>
+    /// <param name="worldPosition">Position in world space where the explosion should occur</param>
+    /// <param name="radius">Radius of the explosion effect</param>
+    /// <param name="strength">Strength of the explosion (higher values = bigger crater)</param>
+    public void CreateExplosion(Vector3 worldPosition, float radius, float strength)
+    {
+        // Validate compute shader
+        if (explosionCompute == null)
+        {
+            Debug.LogError("Explosion compute shader not assigned!");
+            return;
+        }
+
+        // Step 1: Find affected chunks more precisely
+        List<Chunk> affectedChunks = new List<Chunk>();
+        float sqrRadius = radius * radius; // No additional margin
+
+        foreach (var chunk in _chunks)
+        {
+            // Calculate the closest point on the chunk to the explosion center
+            Vector3 closestPoint = GetClosestPointOnChunk(chunk, worldPosition);
+
+            // Check if this closest point is within explosion radius
+            float sqrDst = (worldPosition - closestPoint).sqrMagnitude;
+
+            if (sqrDst <= sqrRadius)
+            {
+                affectedChunks.Add(chunk);
+
+                // Only include direct face-sharing neighbors if they're at the boundary
+                // of the explosion radius (to handle edge cases at chunk boundaries)
+                if (sqrDst > sqrRadius * 0.75f) // Only for explosions near chunk boundaries
+                {
+                    foreach (var otherChunk in _chunks)
+                    {
+                        if (IsNeighbour(chunk, otherChunk) && !affectedChunks.Contains(otherChunk))
+                        {
+                            // Double-check if this neighbor might be affected
+                            Vector3 neighborClosest = GetClosestPointOnChunk(otherChunk, worldPosition);
+                            if ((worldPosition - neighborClosest).sqrMagnitude <= sqrRadius * 1.05f)
+                            {
+                                affectedChunks.Add(otherChunk);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (affectedChunks.Count == 0)
+        {
+            Debug.LogWarning($"Explosion at {worldPosition} with radius {radius} did not affect any chunks.");
+            return;
+        }
+
+        // Step 2: Calculate texture space coordinates
+        int textureSize = _densityTexture.width;
+        Vector3 normalizedPos = (worldPosition / boundsSize) + new Vector3(0.5f, 0.5f, 0.5f);
+        Vector3 texturePos = normalizedPos * textureSize;
+
+        // Convert world-space radius to texture-space radius
+        float textureRadius = radius / boundsSize * textureSize;
+
+        // Calculate affected region bounds
+        Vector3Int minBound = Vector3Int.FloorToInt(texturePos - new Vector3(textureRadius, textureRadius, textureRadius));
+        Vector3Int maxBound = Vector3Int.CeilToInt(texturePos + new Vector3(textureRadius, textureRadius, textureRadius));
+
+        // Clamp to texture boundaries
+        minBound = Vector3Int.Max(Vector3Int.zero, minBound);
+        maxBound = Vector3Int.Min(new Vector3Int(textureSize - 1, textureSize - 1, textureSize - 1), maxBound);
+
+        // Calculate region dimensions
+        int sizeX = maxBound.x - minBound.x + 1;
+        int sizeY = maxBound.y - minBound.y + 1;
+        int sizeZ = maxBound.z - minBound.z + 1;
+
+        // Step 3: Set computation parameters
+        RenderTexture targetTexture = useBlur ? _blurredDensityTexture : _densityTexture;
+
+        // Pass region bounds to compute shader
+        explosionCompute.SetVector("regionMin", new Vector4(minBound.x, minBound.y, minBound.z, 0));
+        explosionCompute.SetVector("regionMax", new Vector4(maxBound.x, maxBound.y, maxBound.z, 0));
+
+        // Pass other essential parameters
+        explosionCompute.SetTexture(0, "DensityTexture", targetTexture);
+        explosionCompute.SetVector("explosionCenter", texturePos);
+        explosionCompute.SetFloat("radius", radius);
+        explosionCompute.SetFloat("strength", strength);
+        explosionCompute.SetInt("textureSize", textureSize);
+        explosionCompute.SetFloat("boundsSize", boundsSize);
+        explosionCompute.SetFloat("isoLevel", isoLevel);
+
+        // Step 4: Process only the affected region
+        ComputeHelper.Dispatch(explosionCompute, sizeX, sizeY, sizeZ);
+
+        // Step 5: Regenerate only affected chunks
+        StartCoroutine(RegenerateOnlyAffectedChunks(affectedChunks, worldPosition));
+
+        // Log success information
+        Debug.Log($"Explosion at {worldPosition} with radius {radius} affecting {affectedChunks.Count} " +
+                  $"chunks. Region size: {sizeX}x{sizeY}x{sizeZ}");
+    }
+
+    /// <summary>
+    /// Gets the closest point on a chunk to a target position
+    /// </summary>
+    private Vector3 GetClosestPointOnChunk(Chunk chunk, Vector3 targetPos)
+    {
+        // Calculate chunk bounds
+        Vector3 halfSize = Vector3.one * chunk.Size * 0.5f;
+        Vector3 min = chunk.Centre - halfSize;
+        Vector3 max = chunk.Centre + halfSize;
+
+        // Clamp target position to chunk bounds
+        return new Vector3(
+            Mathf.Clamp(targetPos.x, min.x, max.x),
+            Mathf.Clamp(targetPos.y, min.y, max.y),
+            Mathf.Clamp(targetPos.z, min.z, max.z)
+        );
+    }
+
+    private bool IsNeighbour(Chunk a, Chunk b)
+    {
+        // Skip comparing with self
+        if (a == b) return false;
+
+        // Calculate Manhattan distance (sum of differences in each axis)
+        int manhattanDist =
+            Mathf.Abs(a.Id.x - b.Id.x) +
+            Mathf.Abs(a.Id.y - b.Id.y) +
+            Mathf.Abs(a.Id.z - b.Id.z);
+
+        // Only count chunks that share a face (Manhattan distance = 1)
+        // This ignores diagonal neighbors
+        return manhattanDist == 1;
+    }
+
+    private System.Collections.IEnumerator RegenerateOnlyAffectedChunks(List<Chunk> chunks, Vector3 explosionCenter)
+    {
+        // Sort chunks by distance to explosion center
+        chunks.Sort((a, b) =>
+            Vector3.Distance(a.Centre, explosionCenter).CompareTo(
+            Vector3.Distance(b.Centre, explosionCenter)));
+
+        // Process 2 chunks per frame, starting with the closest ones
+        const int chunksPerFrame = 2;
+
+        for (int i = 0; i < chunks.Count; i += chunksPerFrame)
+        {
+            int count = Mathf.Min(chunksPerFrame, chunks.Count - i);
+
+            for (int j = 0; j < count; j++)
+            {
+                GenerateChunk(chunks[i + j]);
+            }
+
+            yield return null;
+        }
     }
 
 }
