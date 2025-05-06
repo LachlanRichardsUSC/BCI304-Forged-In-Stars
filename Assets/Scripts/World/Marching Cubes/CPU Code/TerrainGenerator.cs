@@ -52,6 +52,10 @@ public class TerrainGenerator : MonoBehaviour
     [SerializeField][Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
     [SerializeField] private bool enableBorderFalloff = true;
 
+    [Header("Performance Tuning")]
+    [SerializeField][Range(1, 10)] private int chunksPerFrame = 3;
+    [Tooltip("Higher values = faster terrain updates but potential frame drops")]
+
     #endregion
 
     #region Public Properties
@@ -830,21 +834,24 @@ public class TerrainGenerator : MonoBehaviour
             Vector3.Distance(b.Centre, explosionCenter)));
 
         // Process chunks over multiple frames for better performance
-        const int chunksPerFrame = 2;
-
         for (int i = 0; i < chunks.Count; i += chunksPerFrame)
         {
-            int count = Mathf.Min(chunksPerFrame, chunks.Count - i);
+            float startTime = Time.realtimeSinceStartup;
 
+            int count = Mathf.Min(chunksPerFrame, chunks.Count - i);
             for (int j = 0; j < count; j++)
             {
                 GenerateChunk(chunks[i + j]);
             }
 
+            float elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+            Debug.Log($"Updated {count} chunks in {elapsed:F2}ms");
+
             // Wait until next frame to continue processing
             yield return null;
         }
     }
+
     private void OnDrawGizmos()
     {
         // Only draw in play mode when debugging is enabled
