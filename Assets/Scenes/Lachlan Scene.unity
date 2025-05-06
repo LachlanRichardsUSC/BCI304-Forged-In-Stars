@@ -705,31 +705,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8655735072651170858, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
   m_PrefabInstance: {fileID: 1459005970}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1186838719 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5286194420124241759, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
-  m_PrefabInstance: {fileID: 1459005970}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1186838727
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1186838719}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 38a0aab9dfb15a64193411cb515a4977, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  terrainGenerator: {fileID: 0}
-  explosionRadius: 3
-  explosionStrength: 1
-  explosionKey: 101
-  explosionEffectPrefab: {fileID: 0}
-  effectDuration: 1
-  explosionCooldown: 1
---- !u!21 &1259750707
+--- !u!21 &927238401
 Material:
   serializedVersion: 8
   m_ObjectHideFlags: 0
@@ -799,6 +775,30 @@ Material:
     - _NoiseSpeed: {r: 0.5, g: 0, b: 0.5, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
+--- !u!1 &1186838719 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5286194420124241759, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
+  m_PrefabInstance: {fileID: 1459005970}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1186838727
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1186838719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38a0aab9dfb15a64193411cb515a4977, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  terrainGenerator: {fileID: 0}
+  explosionRadius: 3
+  explosionStrength: 1
+  explosionKey: 101
+  explosionEffectPrefab: {fileID: 0}
+  effectDuration: 1
+  explosionCooldown: 1
 --- !u!1 &1391821240
 GameObject:
   m_ObjectHideFlags: 0
@@ -1092,6 +1092,59 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!21 &1901823009
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Height Fog Global
+  m_Shader: {fileID: 4800000, guid: 3a7ef1b66bafb7a448a880ef76d2e6e6, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: 3001
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - unity_Lightmaps:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_LightmapsInd:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_ShadowMasks:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AdvancedCat: 1
+    - _AlphaCutoff: 0.5
+    - _Banner: 1
+    - _DirectionalCat: 1
+    - _FogCameraMode: 0
+    - _FogCat: 1
+    - _HeightFogGlobal: 1
+    - _IsHeightFogShader: 1
+    - _NoiseCat: 1
+    - _QueueControl: -1
+    - _QueueOffset: 0
+    - _SkyboxCat: 1
+    m_Colors:
+    - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
 --- !u!1001 &1930183630
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1129,6 +1182,10 @@ PrefabInstance:
       value: 9806
       objectReference: {fileID: 0}
     - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
+      propertyPath: flatAreaCurve
+      value: 3.38
+      objectReference: {fileID: 0}
+    - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: randomizeSeed
       value: 0
       objectReference: {fileID: 0}
@@ -1137,12 +1194,20 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
+      propertyPath: detailAreaCurve
+      value: 3.66
+      objectReference: {fileID: 0}
+    - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
+      propertyPath: terrainGradient
+      value: 0.03
+      objectReference: {fileID: 0}
+    - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: explosionCompute
       value: 
       objectReference: {fileID: 7200000, guid: f5136d2a9e310fe40b46c0182f344406, type: 3}
     - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: numPointsPerAxis
-      value: 64
+      value: 32
       objectReference: {fileID: 0}
     - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: borderFalloffStart
@@ -1155,6 +1220,10 @@ PrefabInstance:
     - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: noiseHeightMultiplier
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 370660633665921943, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
+      propertyPath: flatTargetQuantization
+      value: 1.14
       objectReference: {fileID: 0}
     - target: {fileID: 3685136772255827088, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1209,59 +1278,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 4b0fe5cde70be4349962ad3538573c17, type: 3}
---- !u!21 &2023967883
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Height Fog Global
-  m_Shader: {fileID: 4800000, guid: 3a7ef1b66bafb7a448a880ef76d2e6e6, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3001
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - unity_Lightmaps:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - unity_LightmapsInd:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - unity_ShadowMasks:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AdvancedCat: 1
-    - _AlphaCutoff: 0.5
-    - _Banner: 1
-    - _DirectionalCat: 1
-    - _FogCameraMode: 0
-    - _FogCat: 1
-    - _HeightFogGlobal: 1
-    - _IsHeightFogShader: 1
-    - _NoiseCat: 1
-    - _QueueControl: -1
-    - _QueueOffset: 0
-    - _SkyboxCat: 1
-    m_Colors:
-    - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &2024034033
 GameObject:
   m_ObjectHideFlags: 0
@@ -1571,7 +1587,7 @@ MonoBehaviour:
   renderPriority: 1
   manualPositionAndScale: 0
   styledSpace0: 0
-  overrideMaterial: {fileID: 1259750707}
+  overrideMaterial: {fileID: 927238401}
   overrideCamToVolumeDistance: 1
   overrideVolumeDistanceFade: 0
   version: 0
@@ -1606,7 +1622,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2023967883}
+  - {fileID: 1901823009}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

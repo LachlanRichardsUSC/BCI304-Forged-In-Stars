@@ -14,44 +14,42 @@ float terrainSeed;
 float borderFalloffStart;
 float borderFalloffSteepness;
 int enableBorderFalloff;
+float terrainGradient;
 
+// Terrain zone parameters
 float flatnessThreshold; // Controls how much terrain is flat (0-1)
 float detail3DStrength; // Controls strength of 3D features (0-1)
-
-// Added curve adjustment parameters
 float flatAreaCurve = 0.8; // Controls flatness transition curve
 float detailAreaCurve = 0.7; // Controls detail transition curve
 
-// Improved FBM function that reduces horizontal artifacts at low noise scales
-
+// Improved FBM (Fractal Brownian Motion) function with optimizations
+// - Reduces horizontal artifacts at low noise scales 
+// - Uses rotation and offset to break up grid patterns
 float fbm(int numLayers, float lacunarity, float persistence, float scale, float3 pos, float seedOffset = 0)
 {
+    // Initialize noise accumulator and frequency parameters
     float noise = 0;
-    
-    // When scale is low, increase the initial frequency to avoid grid artifacts
-    float baseFreq = max(1.0, scale) / 100.0;
+    float baseFreq = max(1.0, scale) / 100.0; // Increase base frequency for low scales
     float frequency = baseFreq;
     float amplitude = 1;
     
-    // Apply a rotation matrix to break up the grid alignment
-    // This is especially important at low scales
+    // Create rotation matrix to break up grid alignment (30 degrees around Y axis)
     float3x3 rotMatrix = float3x3(
-        0.8660254, 0.0, 0.5, // 30 degrees around Y
+        0.8660254, 0.0, 0.5,
         0.0, 1.0, 0.0,
         -0.5, 0.0, 0.8660254
     );
     
-    float3 rotatedPos = pos;
+    // Apply initial rotation once, outside the loop for efficiency
+    float3 rotatedPos = mul(rotMatrix, pos);
     
+    // Accumulate noise layers
     for (int i = 0; i < numLayers; i++)
     {
-        // Apply subtle rotation to break up horizontal patterns
-        rotatedPos = mul(rotMatrix, rotatedPos);
-        
-        // Add some prime number offsets to further reduce pattern visibility
+        // Add prime number offsets to reduce pattern visibility
         float3 offsetPos = rotatedPos + float3(i * 31.13, i * 47.53, i * 13.71);
         
-        // Use your existing noise function with seed
+        // Generate noise value
         float n = 1 - abs(snoiseseed(offsetPos * frequency, float(terrainSeed + seedOffset + i)) * 2.0 - 1.0);
         
         // Apply domain warping for low frequencies to break up patterns
@@ -62,73 +60,77 @@ float fbm(int numLayers, float lacunarity, float persistence, float scale, float
                 cos(offsetPos.y * 0.4 + offsetPos.x * 0.7) * 0.2,
                 sin(offsetPos.z * 0.6 + offsetPos.y * 0.2) * 0.2
             );
-            float nWarped = 1 - abs(snoiseseed((offsetPos + warp) * frequency, float(terrainSeed + seedOffset + i + 100)) * 2.0 - 1.0);
-            // Use HLSL's built-in lerp function instead of mix
+            float nWarped = 1 - abs(snoiseseed((offsetPos + warp) * frequency,
+                             float(terrainSeed + seedOffset + i + 100)) * 2.0 - 1.0);
             n = lerp(n, nWarped, 0.6);
         }
         
+        // Add weighted noise to total
         noise += n * amplitude;
         
-        // Use slightly different frequency multipliers for each octave
+        // Vary frequency multipliers slightly for each octave to reduce repetition
         float freqMultiplier = lacunarity;
         if (i == 1)
             freqMultiplier = lacunarity * 0.97;
-        if (i == 2)
+        else if (i == 2)
             freqMultiplier = lacunarity * 1.03;
-        if (i == 3)
+        else if (i == 3)
             freqMultiplier = lacunarity * 0.99;
         
+        // Update parameters for next octave
         frequency *= freqMultiplier;
         amplitude *= persistence;
+        
+        // Apply subtle rotation to further break up patterns
+        rotatedPos = mul(rotMatrix, rotatedPos);
     }
+    
     return noise;
 }
 
+// Calculates terrain density value for a given cell position
+// Combines heightmap, flatness masks, and 3D details
 float calculateDensity(int3 cell)
 {
     // Convert cell position to world space
     float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * boundsSize;
     
-    // Calculate distance from edge for XZ border falloff
+    // Calculate border falloff
     float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
     float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0; // 0 at center, 1 at edge
     float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
     
-    // Create a falloff that starts at a certain distance from the edge
+    // Apply border falloff if enabled
     float falloffFactor = 1.0;
-    if (enableBorderFalloff != 0) // Check if border falloff is enabled
+    if (enableBorderFalloff != 0)
     {
         falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
-        // Fix for pow() warning - ensure base is non-negative
         falloffFactor = pow(max(0.0, falloffFactor), borderFalloffSteepness);
     }
     
-    // 1. Create heightmap-based terrain foundation
+    // 1. Generate base terrain heightmap
     float2 xzPosition = float2(worldPos.x, worldPos.z);
-    float terrainHeight = fbm(5, 2.0, 0.5, noiseScale, float3(xzPosition.x, 0, xzPosition.y)) * noiseHeightMultiplier;
+    float terrainHeight = fbm(5, 2.0, 0.5, noiseScale, float3(xzPosition.x, 0, xzPosition.y))
+                          * noiseHeightMultiplier;
     
-    // Re-center the noise distribution by offsetting terrainHeight
-    terrainHeight = terrainHeight - (noiseHeightMultiplier * 0.5);
+    // Center the noise distribution
+    terrainHeight -= noiseHeightMultiplier * 0.5;
     
-    // 2. IMPROVED FLATNESS MASK - normalize the noise output
-    // Generate base flatness noise
+    // 2. Generate flatness mask to create varied terrain zones
     float rawFlatnessMask = fbm(2, 1.8, 0.4, noiseScale * 0.3, float3(xzPosition.x, 0, xzPosition.y), 500);
-    
-    // Normalize to ensure better distribution (more values in middle range)
     float flatnessMask = smoothstep(0.3, 0.7, rawFlatnessMask);
     
-    // Adjust threshold using flatnessThreshold parameter with better scaling
+    // Calculate effective threshold based on user parameter
     float effectiveThreshold = 0.2 + flatnessThreshold * 0.6;
     
-    // More prominent flat area effect
+    // 3. Apply plateau effect to flat areas
     if (flatnessMask > effectiveThreshold)
     {
-        // Calculate smoothing factor with more dramatic effect
+        // Calculate smoothing factor with proper curve
         float smoothFactor = (flatnessMask - effectiveThreshold) / (1.0 - effectiveThreshold);
-        // Fix for pow() warning - ensure base is non-negative
-        smoothFactor = pow(max(0.0, smoothFactor), flatAreaCurve); // Using parameter instead of hardcoded 0.8
+        smoothFactor = pow(max(0.0, smoothFactor), flatAreaCurve);
         
-        // Flat area smoothing code
+        // Sample neighboring positions for smooth height blending
         float smoothedHeight = 0;
         float totalWeight = 0;
         
@@ -136,15 +138,15 @@ float calculateDensity(int3 cell)
         {
             for (int dz = -1; dz <= 1; dz++)
             {
-                if (abs(dx) + abs(dz) <= 1)
+                if (abs(dx) + abs(dz) <= 1) // Only cardinal directions + center
                 {
                     float2 samplePos = xzPosition + float2(dx, dz) * 5.0;
                     float weight = 1.0 / (1.0 + (abs(dx) + abs(dz)));
                     
-                    // Apply the same offset to sample heights for consistency
+                    // Sample height at offset position
                     float sampleHeight = fbm(5, 2.0, 0.5, noiseScale,
-                                            float3(samplePos.x, 0, samplePos.y)) * noiseHeightMultiplier;
-                    sampleHeight = sampleHeight - (noiseHeightMultiplier * 0.5);
+                                        float3(samplePos.x, 0, samplePos.y)) * noiseHeightMultiplier;
+                    sampleHeight -= noiseHeightMultiplier * 0.5;
                     
                     smoothedHeight += sampleHeight * weight;
                     totalWeight += weight;
@@ -152,48 +154,46 @@ float calculateDensity(int3 cell)
             }
         }
         
+        // Apply smoothed height
         smoothedHeight /= totalWeight;
         terrainHeight = lerp(terrainHeight, smoothedHeight, smoothFactor);
         
-        // Make plateau effect more pronounced - adjust for the new centered approach
-        float targetFlatHeight = round(terrainHeight / (noiseHeightMultiplier * 0.2))
-                              * (noiseHeightMultiplier * 0.2);
+        // Create plateau effect by rounding to height intervals
+        float intervalSize = noiseHeightMultiplier * 0.2;
+        float targetFlatHeight = round(terrainHeight / intervalSize) * intervalSize;
         terrainHeight = lerp(terrainHeight, targetFlatHeight, smoothFactor * 0.8);
     }
     
-    // 3. Modified 3D feature application to complement flatness effect
+    // 4. Apply 3D detail to non-flat areas
     float detail3D = 0;
+    float nonFlatThreshold = 1.0 - effectiveThreshold * 0.5;
     
-    // Use complementary threshold for 3D features
-    if (flatnessMask < (1.0 - effectiveThreshold * 0.5))
+    if (flatnessMask < nonFlatThreshold)
     {
-        float nonFlatFactor = 1.0 - (flatnessMask / (1.0 - effectiveThreshold * 0.5));
-        // Fix for pow() warning - ensure base is non-negative
-        nonFlatFactor = pow(max(0.0, nonFlatFactor), detailAreaCurve); // Using parameter instead of hardcoded 0.7
+        // More detail in less flat areas
+        float nonFlatFactor = 1.0 - (flatnessMask / nonFlatThreshold);
+        nonFlatFactor = pow(max(0.0, nonFlatFactor), detailAreaCurve);
         
-        // Use detail3DStrength parameter to control 3D feature intensity
+        // Add medium scale details
         detail3D = fbm(4, 2.1, 0.5, noiseScale * 2.5, worldPos, 100)
                  * (noiseHeightMultiplier * detail3DStrength) * nonFlatFactor;
-                  
-        // More dramatic features in very non-flat areas
+        
+        // Add dramatic features in very non-flat areas (mountain peaks, cliffs)
         if (flatnessMask < 0.3)
         {
             float dramaticFactor = 1.0 - (flatnessMask / 0.3);
             float dramaticDetail = fbm(3, 2.2, 0.6, noiseScale * 3.0, worldPos, 200)
-                                 * (noiseHeightMultiplier * detail3DStrength * 1.5) * dramaticFactor;
+                               * (noiseHeightMultiplier * detail3DStrength * 1.5) * dramaticFactor;
             detail3D += dramaticDetail;
         }
     }
     
-    // Apply border falloff to terrain height
+    // Apply border falloff to terrain features
     terrainHeight *= falloffFactor;
     
-    // 4. Calculate final density with the modified height
-    float baseHeight = 0.0;
-    float finalHeight = baseHeight + terrainHeight;
-    
-    float heightDifference = finalHeight - worldPos.y;
-    float gradient = boundsSize * 0.03;
+    // 5. Calculate final density (removed unnecessary baseHeight variable)
+    float heightDifference = terrainHeight - worldPos.y;
+    float gradient = boundsSize * terrainGradient;
     float density = heightDifference / gradient;
     
     // Add 3D detail with falloff applied
@@ -201,7 +201,6 @@ float calculateDensity(int3 cell)
     
     return density;
 }
-
 
 [numthreads(8, 8, 8)]
 void CSMain(int3 id : SV_DispatchThreadID)
@@ -214,19 +213,19 @@ void CSMain(int3 id : SV_DispatchThreadID)
 
     float density;
 
-    // Keep bottom solid for stability
+    // Create solid bottom layer for stability
     if (id.y <= borderWidth)
     {
         density = 5.0; // Solid density
     }
-    // Keep very top as air
+    // Create empty top layer (air)
     else if (id.y >= textureSize - borderWidth)
     {
         density = -5.0; // Air density
     }
     else
     {
-        // Normal terrain generation with border falloff applied
+        // Normal terrain generation with border falloff
         density = calculateDensity(id);
     }
 
