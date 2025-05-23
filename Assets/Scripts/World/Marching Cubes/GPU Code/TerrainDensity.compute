@@ -8,196 +8,128 @@ int borderWidth;
 
 // Generation parameters
 float boundsSize;
-float noiseScale;
-float noiseHeightMultiplier;
 float terrainSeed;
+
+// Terrain shape parameters (replacing old confusing ones)
+float baseHeight; // Base terrain height (0 = centered at origin)
+float terrainScale; // Overall scale of terrain features
+float terrainAmplitude; // Overall height of terrain features
+int octaves; // Number of noise octaves (4-9 recommended)
+float persistence; // How much each octave contributes (0.4-0.6)
+float lacunarity; // Frequency multiplier between octaves (1.8-2.2)
+
+// Feature parameters
+float warpStrength; // Domain warping strength (0-1)
+float hardFloorHeight; // Y level for hard floor (-inf to disable)
+float hardFloorBlend; // Blend distance for hard floor
+float cavesStrength; // 3D cave features (0-1)
+float ridgeStrength; // Ridge/mountain sharpness (0-1)
+
+// Border parameters
 float borderFalloffStart;
 float borderFalloffSteepness;
 int enableBorderFalloff;
-float terrainGradient;
 
-// Terrain zone parameters
-float flatnessThreshold; // Controls how much terrain is flat (0-1)
-float detail3DStrength; // Controls strength of 3D features (0-1)
-float flatAreaCurve = 0.8; // Controls flatness transition curve
-float detailAreaCurve = 0.7; // Controls detail transition curve
-
-// Improved FBM (Fractal Brownian Motion) function with optimizations
-// - Reduces horizontal artifacts at low noise scales 
-// - Uses rotation and offset to break up grid patterns
-float fbm(int numLayers, float lacunarity, float persistence, float scale, float3 pos, float seedOffset = 0)
+// Advanced 3D noise function that creates better terrain
+// Uses proper octave accumulation as described in GPU Gems
+float terrain3DNoise(float3 pos, float seed)
 {
-    // Initialize noise accumulator and frequency parameters
     float noise = 0;
-    float baseFreq = max(1.0, scale) / 100.0; // Increase base frequency for low scales
-    float frequency = baseFreq;
     float amplitude = 1;
+    float frequency = 1;
+    float maxValue = 0; // For normalizing result
     
-    // Create rotation matrix to break up grid alignment (30 degrees around Y axis)
-    float3x3 rotMatrix = float3x3(
-        0.8660254, 0.0, 0.5,
-        0.0, 1.0, 0.0,
-        -0.5, 0.0, 0.8660254
-    );
-    
-    // Apply initial rotation once, outside the loop for efficiency
-    float3 rotatedPos = mul(rotMatrix, pos);
-    
-    // Accumulate noise layers
-    for (int i = 0; i < numLayers; i++)
+    // Accumulate octaves
+    for (int i = 0; i < octaves; i++)
     {
-        // Add prime number offsets to reduce pattern visibility
-        float3 offsetPos = rotatedPos + float3(i * 31.13, i * 47.53, i * 13.71);
+        // Sample noise at current frequency
+        float sampleValue = snoiseseed(pos * frequency, seed + i * 100.0);
         
-        // Generate noise value
-        float n = 1 - abs(snoiseseed(offsetPos * frequency, float(terrainSeed + seedOffset + i)) * 2.0 - 1.0);
-        
-        // Apply domain warping for low frequencies to break up patterns
-        if (scale <= 1.2 && i < 3)
+        // Apply ridged noise transformation if enabled
+        if (ridgeStrength > 0)
         {
-            float3 warp = float3(
-                sin(offsetPos.x * 0.5 + offsetPos.z * 0.3) * 0.2,
-                cos(offsetPos.y * 0.4 + offsetPos.x * 0.7) * 0.2,
-                sin(offsetPos.z * 0.6 + offsetPos.y * 0.2) * 0.2
-            );
-            float nWarped = 1 - abs(snoiseseed((offsetPos + warp) * frequency,
-                             float(terrainSeed + seedOffset + i + 100)) * 2.0 - 1.0);
-            n = lerp(n, nWarped, 0.6);
+            // Make ridges by taking absolute value and inverting
+            float ridge = 1.0 - abs(sampleValue);
+            ridge = ridge * ridge; // Square for sharper ridges
+            sampleValue = lerp(sampleValue, ridge, ridgeStrength);
         }
         
-        // Add weighted noise to total
-        noise += n * amplitude;
+        noise += sampleValue * amplitude;
+        maxValue += amplitude;
         
-        // Vary frequency multipliers slightly for each octave to reduce repetition
-        float freqMultiplier = lacunarity;
-        if (i == 1)
-            freqMultiplier = lacunarity * 0.97;
-        else if (i == 2)
-            freqMultiplier = lacunarity * 1.03;
-        else if (i == 3)
-            freqMultiplier = lacunarity * 0.99;
-        
-        // Update parameters for next octave
-        frequency *= freqMultiplier;
         amplitude *= persistence;
-        
-        // Apply subtle rotation to further break up patterns
-        rotatedPos = mul(rotMatrix, rotatedPos);
+        frequency *= lacunarity;
     }
     
-    return noise;
+    // Normalize to [-1, 1] range
+    return noise / maxValue;
 }
 
-// Calculates terrain density value for a given cell position
-// Combines heightmap, flatness masks, and 3D details
+// Calculates terrain density value following GPU Gems methodology
 float calculateDensity(int3 cell)
 {
     // Convert cell position to world space
     float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * boundsSize;
     
-    // Calculate border falloff
-    float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
-    float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0; // 0 at center, 1 at edge
-    float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
+    // Start with basic density gradient (negative above ground, positive below)
+    // This is the KEY insight from GPU Gems - density = -y
+    float density = baseHeight - worldPos.y;
+    
+    // Apply domain warping if enabled (warp the input coordinates)
+    float3 warpedPos = worldPos;
+    if (warpStrength > 0)
+    {
+        // Low frequency warp for organic looking terrain
+        float3 warp = float3(
+            snoiseseed(worldPos * 0.01, terrainSeed + 1000),
+            snoiseseed(worldPos * 0.01, terrainSeed + 2000),
+            snoiseseed(worldPos * 0.01, terrainSeed + 3000)
+        );
+        warpedPos += warp * warpStrength * terrainAmplitude;
+    }
+    
+    // Sample 2D terrain height using XZ coordinates
+    float2 pos2D = warpedPos.xz / terrainScale;
+    float terrainHeight = terrain3DNoise(float3(pos2D.x, 0, pos2D.y), terrainSeed) * terrainAmplitude;
+    
+    // Add terrain height to density
+    density += terrainHeight;
+    
+    // Add 3D cave features if enabled
+    if (cavesStrength > 0)
+    {
+        // 3D noise for caves and overhangs
+        float3 pos3D = warpedPos / (terrainScale * 0.5); // Higher frequency for caves
+        float caves = terrain3DNoise(pos3D, terrainSeed + 5000) * terrainAmplitude * cavesStrength;
+        
+        // Blend caves more strongly at certain heights for better results
+        float caveBlend = 1.0 - saturate(abs(worldPos.y - baseHeight) / terrainAmplitude);
+        density += caves * caveBlend;
+    }
+    
+    // Apply hard floor if enabled (creates flat bottom areas)
+    if (hardFloorHeight > -1000)
+    {
+        float floorInfluence = saturate((hardFloorHeight - worldPos.y) / hardFloorBlend);
+        density += floorInfluence * floorInfluence * terrainAmplitude * 2.0;
+    }
     
     // Apply border falloff if enabled
-    float falloffFactor = 1.0;
     if (enableBorderFalloff != 0)
     {
-        falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
+        float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
+        float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0;
+        float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
+        
+        float falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
         falloffFactor = pow(max(0.0, falloffFactor), borderFalloffSteepness);
+        
+        // Reduce density at borders to create falloff
+        density *= falloffFactor;
+        
+        // Also reduce features at borders
+        density -= (1.0 - falloffFactor) * terrainAmplitude;
     }
-    
-    // 1. Generate base terrain heightmap
-    float2 xzPosition = float2(worldPos.x, worldPos.z);
-    float terrainHeight = fbm(5, 2.0, 0.5, noiseScale, float3(xzPosition.x, 0, xzPosition.y))
-                          * noiseHeightMultiplier;
-    
-    // Center the noise distribution
-    terrainHeight -= noiseHeightMultiplier * 0.5;
-    
-    // 2. Generate flatness mask to create varied terrain zones
-    float rawFlatnessMask = fbm(2, 1.8, 0.4, noiseScale * 0.3, float3(xzPosition.x, 0, xzPosition.y), 500);
-    float flatnessMask = smoothstep(0.3, 0.7, rawFlatnessMask);
-    
-    // Calculate effective threshold based on user parameter
-    float effectiveThreshold = 0.2 + flatnessThreshold * 0.6;
-    
-    // 3. Apply plateau effect to flat areas
-    if (flatnessMask > effectiveThreshold)
-    {
-        // Calculate smoothing factor with proper curve
-        float smoothFactor = (flatnessMask - effectiveThreshold) / (1.0 - effectiveThreshold);
-        smoothFactor = pow(max(0.0, smoothFactor), flatAreaCurve);
-        
-        // Sample neighboring positions for smooth height blending
-        float smoothedHeight = 0;
-        float totalWeight = 0;
-        
-        for (int dx = -1; dx <= 1; dx++)
-        {
-            for (int dz = -1; dz <= 1; dz++)
-            {
-                if (abs(dx) + abs(dz) <= 1) // Only cardinal directions + center
-                {
-                    float2 samplePos = xzPosition + float2(dx, dz) * 5.0;
-                    float weight = 1.0 / (1.0 + (abs(dx) + abs(dz)));
-                    
-                    // Sample height at offset position
-                    float sampleHeight = fbm(5, 2.0, 0.5, noiseScale,
-                                        float3(samplePos.x, 0, samplePos.y)) * noiseHeightMultiplier;
-                    sampleHeight -= noiseHeightMultiplier * 0.5;
-                    
-                    smoothedHeight += sampleHeight * weight;
-                    totalWeight += weight;
-                }
-            }
-        }
-        
-        // Apply smoothed height
-        smoothedHeight /= totalWeight;
-        terrainHeight = lerp(terrainHeight, smoothedHeight, smoothFactor);
-        
-        // Create plateau effect by rounding to height intervals
-        float intervalSize = noiseHeightMultiplier * 0.2;
-        float targetFlatHeight = round(terrainHeight / intervalSize) * intervalSize;
-        terrainHeight = lerp(terrainHeight, targetFlatHeight, smoothFactor * 0.8);
-    }
-    
-    // 4. Apply 3D detail to non-flat areas
-    float detail3D = 0;
-    float nonFlatThreshold = 1.0 - effectiveThreshold * 0.5;
-    
-    if (flatnessMask < nonFlatThreshold)
-    {
-        // More detail in less flat areas
-        float nonFlatFactor = 1.0 - (flatnessMask / nonFlatThreshold);
-        nonFlatFactor = pow(max(0.0, nonFlatFactor), detailAreaCurve);
-        
-        // Add medium scale details
-        detail3D = fbm(4, 2.1, 0.5, noiseScale * 2.5, worldPos, 100)
-                 * (noiseHeightMultiplier * detail3DStrength) * nonFlatFactor;
-        
-        // Add dramatic features in very non-flat areas (mountain peaks, cliffs)
-        if (flatnessMask < 0.3)
-        {
-            float dramaticFactor = 1.0 - (flatnessMask / 0.3);
-            float dramaticDetail = fbm(3, 2.2, 0.6, noiseScale * 3.0, worldPos, 200)
-                               * (noiseHeightMultiplier * detail3DStrength * 1.5) * dramaticFactor;
-            detail3D += dramaticDetail;
-        }
-    }
-    
-    // Apply border falloff to terrain features
-    terrainHeight *= falloffFactor;
-    
-    // 5. Calculate final density (removed unnecessary baseHeight variable)
-    float heightDifference = terrainHeight - worldPos.y;
-    float gradient = boundsSize * terrainGradient;
-    float density = heightDifference / gradient;
-    
-    // Add 3D detail with falloff applied
-    density += detail3D * falloffFactor;
     
     return density;
 }
@@ -216,16 +148,16 @@ void CSMain(int3 id : SV_DispatchThreadID)
     // Create solid bottom layer for stability
     if (id.y <= borderWidth)
     {
-        density = 5.0; // Solid density
+        density = 5.0;
     }
     // Create empty top layer (air)
     else if (id.y >= textureSize - borderWidth)
     {
-        density = -5.0; // Air density
+        density = -5.0;
     }
     else
     {
-        // Normal terrain generation with border falloff
+        // Normal terrain generation
         density = calculateDensity(id);
     }
 

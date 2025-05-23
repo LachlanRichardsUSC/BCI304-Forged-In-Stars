@@ -13,9 +13,10 @@ public class TerrainGenerator : MonoBehaviour
         Custom,
         RollingHills,
         Mountains,
-        FlatPlains,
+        Desert,
         Canyons,
-        Islands
+        Islands,
+        Alien
     }
 
     #endregion
@@ -29,37 +30,61 @@ public class TerrainGenerator : MonoBehaviour
     [Header("World Structure")]
     [SerializeField]
     [Tooltip("Physical size of the entire terrain in world units")]
-    [Range(256, 2048)] private float terrainScale = 512f;
+    [Range(100, 2000)] private float terrainScale = 600f;
 
     [SerializeField]
     [Tooltip("Number of chunks in each dimension (5 = 5󬊅 = 125 chunks total)")]
-    [Range(1, 16)] private int worldChunks = 8;
+    [Range(1, 10)] private int worldSize = 5;
 
     [SerializeField]
     [Tooltip("Vertices per chunk edge. Higher = more detail but slower. (32 is usually good)")]
-    [Range(16, 128)] private int chunkResolution = 64;
+    [Range(16, 64)] private int chunkResolution = 32;
 
     [Header("Terrain Shape")]
     [SerializeField]
-    [Tooltip("Base frequency of terrain features. Lower = larger features")]
-    [Range(0.01f, 8.0f)] private float noiseScale = 0.03f;
+    [Tooltip("Height offset of the terrain base plane")]
+    [Range(-50f, 50f)] private float baseHeight = 0f;
 
     [SerializeField]
-    [Tooltip("Height multiplier for terrain. Higher = taller mountains/deeper valleys")]
-    [Range(0.1f, 16.0f)] private float noiseHeightMultiplier = 3.0f;
+    [Tooltip("Size of terrain features. Larger = broader mountains/valleys")]
+    [Range(10f, 500f)] private float featureScale = 100f;
 
     [SerializeField]
-    [Tooltip("Controls terrain slope steepness. Lower = sharper/steeper, Higher = gentler slopes")]
-    [Range(0.01f, 0.1f)] private float terrainGradient = 0.02f;
+    [Tooltip("Height of terrain features")]
+    [Range(10f, 300f)] private float featureAmplitude = 50f;
+
+    [SerializeField]
+    [Tooltip("Number of noise layers. More = more detail")]
+    [Range(3, 9)] private int noiseOctaves = 6;
+
+    [SerializeField]
+    [Tooltip("How much each noise layer contributes (0.4-0.6 recommended)")]
+    [Range(0.3f, 0.7f)] private float noisePersistence = 0.5f;
+
+    [SerializeField]
+    [Tooltip("Frequency multiplier between octaves (1.8-2.2 recommended)")]
+    [Range(1.5f, 2.5f)] private float noiseLacunarity = 2.0f;
 
     [Header("Terrain Features")]
     [SerializeField]
-    [Tooltip("Percentage of terrain that becomes flat plateaus (0-1)")]
-    [Range(0.0f, 1.0f)] private float flatnessThreshold = 1.0f;
+    [Tooltip("Warps terrain for more organic shapes")]
+    [Range(0.0f, 1.0f)] private float domainWarpStrength = 0.3f;
 
     [SerializeField]
-    [Tooltip("Strength of 3D features like overhangs and caves. Keep low (0.1-0.3) for normal terrain")]
-    [Range(0.0f, 1.0f)] private float detail3DStrength = 0.25f;
+    [Tooltip("Creates caves and 3D overhangs")]
+    [Range(0.0f, 1.0f)] private float caveStrength = 0.2f;
+
+    [SerializeField]
+    [Tooltip("Makes mountains sharp and ridge-like")]
+    [Range(0.0f, 1.0f)] private float ridgeStrength = 0.0f;
+
+    [SerializeField]
+    [Tooltip("Y level for hard floor (-1000 to disable)")]
+    [Range(-1000f, 100f)] private float hardFloorHeight = -50f;
+
+    [SerializeField]
+    [Tooltip("Blend distance for hard floor")]
+    [Range(5f, 50f)] private float hardFloorBlend = 20f;
 
     [Header("Terrain Smoothing")]
     [SerializeField]
@@ -68,7 +93,7 @@ public class TerrainGenerator : MonoBehaviour
 
     [SerializeField]
     [Tooltip("Smoothing radius (1-2 for light smoothing, 3-5 for heavy)")]
-    [Range(1, 5)] private int blurRadius = 2;
+    [Range(1, 5)] private int blurRadius = 1;
 
     [Header("World Edges")]
     [SerializeField]
@@ -77,7 +102,7 @@ public class TerrainGenerator : MonoBehaviour
 
     [SerializeField]
     [Tooltip("How far from edge the fadeout begins (0 = at edge, 0.5 = halfway to center)")]
-    [Range(0.0f, 0.5f)] private float borderFalloffStart = 0.1f;
+    [Range(0.0f, 0.5f)] private float borderFalloffStart = 0.3f;
 
     [SerializeField]
     [Tooltip("How quickly terrain fades at borders (1 = gradual, 5 = sharp)")]
@@ -90,7 +115,7 @@ public class TerrainGenerator : MonoBehaviour
     [Header("Generation")]
     [SerializeField]
     [Tooltip("Seed for random terrain generation")]
-    private int terrainSeed = 9806;
+    private int terrainSeed = 0;
 
     [SerializeField]
     [Tooltip("Generate random seed on start")]
@@ -136,60 +161,115 @@ public class TerrainGenerator : MonoBehaviour
         switch (presetType)
         {
             case TerrainPreset.RollingHills:
-                noiseScale = 1.2f;
-                noiseHeightMultiplier = 0.4f;
-                terrainGradient = 0.04f;
-                flatnessThreshold = 0.5f;
-                detail3DStrength = 0.1f;
+                baseHeight = 0f;
+                featureScale = 150f;
+                featureAmplitude = 40f;
+                noiseOctaves = 5;
+                noisePersistence = 0.5f;
+                noiseLacunarity = 2.0f;
+                domainWarpStrength = 0.2f;
+                caveStrength = 0.1f;
+                ridgeStrength = 0.0f;
+                hardFloorHeight = -30f;
+                hardFloorBlend = 20f;
                 useBlur = true;
-                blurRadius = 1;
-                enableBorderFalloff = true;
+                blurRadius = 2;
+                enableBorderFalloff = false;
+                borderFalloffStart = 0.3f;
+                borderFalloffSteepness = 2.0f;
                 break;
 
             case TerrainPreset.Mountains:
-                noiseScale = 0.8f;
-                noiseHeightMultiplier = 0.8f;
-                terrainGradient = 0.02f;
-                flatnessThreshold = 0.2f;
-                detail3DStrength = 0.25f;
+                baseHeight = -32f;
+                featureScale = 96f;
+                featureAmplitude = 72f;
+                noiseOctaves = 4;
+                noisePersistence = 0.348f;
+                noiseLacunarity = 1.755f;
+                domainWarpStrength = 0.1f;
+                caveStrength = 0.1f;
+                ridgeStrength = 0.45f;
+                hardFloorHeight = -60f;
+                hardFloorBlend = 30f;
                 useBlur = true;
-                blurRadius = 1;
-                enableBorderFalloff = true;
+                blurRadius = 3;
+                enableBorderFalloff = false;
+                borderFalloffStart = 0.3f;
+                borderFalloffSteepness = 2.0f;
                 break;
 
-            case TerrainPreset.FlatPlains:
-                noiseScale = 2.5f;
-                noiseHeightMultiplier = 0.2f;
-                terrainGradient = 0.05f;
-                flatnessThreshold = 0.8f;
-                detail3DStrength = 0.05f;
+            case TerrainPreset.Desert:
+                baseHeight = 0f;
+                featureScale = 64f;
+                featureAmplitude = 20f;
+                noiseOctaves = 8;
+                noisePersistence = 0.333f;
+                noiseLacunarity = 1.5f;
+                domainWarpStrength = 0.5f;
+                caveStrength = 0.0f;
+                ridgeStrength = 0.87f;
+                hardFloorHeight = 0f;
+                hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 2;
                 enableBorderFalloff = false;
                 break;
 
             case TerrainPreset.Canyons:
-                noiseScale = 0.6f;
-                noiseHeightMultiplier = 0.7f;
-                terrainGradient = 0.015f;
-                flatnessThreshold = 0.3f;
-                detail3DStrength = 0.35f;
-                useBlur = false;
-                blurRadius = 1;
-                enableBorderFalloff = true;
+                baseHeight = -50f;
+                featureScale = 384f;
+                featureAmplitude = 128f;
+                noiseOctaves = 7;
+                noisePersistence = 0.425f;
+                noiseLacunarity = 2.0f;
+                domainWarpStrength = 0.5f;
+                caveStrength = 0.8f;
+                ridgeStrength = 0.8f;
+                hardFloorHeight = 0f;
+                hardFloorBlend = 5f;
+                useBlur = true;
+                blurRadius = 3;
+                enableBorderFalloff = false;
+                borderFalloffStart = 0.2f;
+                borderFalloffSteepness = 3.0f;
                 break;
 
             case TerrainPreset.Islands:
-                noiseScale = 1.5f;
-                noiseHeightMultiplier = 0.5f;
-                terrainGradient = 0.03f;
-                flatnessThreshold = 0.4f;
-                detail3DStrength = 0.15f;
+                baseHeight = -20f;
+                featureScale = 100f;
+                featureAmplitude = 60f;
+                noiseOctaves = 5;
+                noisePersistence = 0.5f;
+                noiseLacunarity = 1.9f;
+                domainWarpStrength = 0.4f;
+                caveStrength = 0.2f;
+                ridgeStrength = 0.2f;
+                hardFloorHeight = -80f;
+                hardFloorBlend = 20f;
                 useBlur = true;
                 blurRadius = 1;
                 enableBorderFalloff = true;
                 borderFalloffStart = 0.15f;
-                borderFalloffSteepness = 3.0f;
+                borderFalloffSteepness = 4.0f;
+                break;
+
+            case TerrainPreset.Alien:
+                baseHeight = -27.4f;
+                featureScale = 384f;
+                featureAmplitude = 104f;
+                noiseOctaves = 4;
+                noisePersistence = 0.333f;
+                noiseLacunarity = 1.982f;
+                domainWarpStrength = 1f;
+                caveStrength = 0.75f;
+                ridgeStrength = 1f;
+                hardFloorHeight = 0f; // Disabled
+                hardFloorBlend = 5f;
+                useBlur = true;
+                blurRadius = 2;
+                enableBorderFalloff = false;
+                borderFalloffStart = 0.3f;
+                borderFalloffSteepness = 2.0f;
                 break;
         }
 
@@ -309,7 +389,7 @@ public class TerrainGenerator : MonoBehaviour
         if (_initialized)
             ReleaseResources();
 
-        _textureSize = worldChunks * (chunkResolution - 1) + 1;
+        _textureSize = worldSize * (chunkResolution - 1) + 1;
 
         if (randomizeSeed)
         {
@@ -317,7 +397,7 @@ public class TerrainGenerator : MonoBehaviour
             Debug.Log($"Using random terrain seed: {terrainSeed}");
         }
 
-        _spatialCellSize = terrainScale / (worldChunks * 0.5f);
+        _spatialCellSize = terrainScale / (worldSize * 0.5f);
         _spatialHash = new Dictionary<Vector3Int, List<Chunk>>();
 
         InitTextures();
@@ -364,7 +444,7 @@ public class TerrainGenerator : MonoBehaviour
 
     private void CreateChunks()
     {
-        int chunksPerAxis = worldChunks;
+        int chunksPerAxis = worldSize;
         _chunkLookup = new Dictionary<Vector3Int, Chunk>();
 
         _chunks = new Chunk[chunksPerAxis * chunksPerAxis * chunksPerAxis];
@@ -494,18 +574,26 @@ public class TerrainGenerator : MonoBehaviour
 
     private void ComputeDensity()
     {
-        // Pass parameters exactly as the shader expects them
+        // Pass parameters to compute shader
         densityCompute.SetInt("textureSize", _textureSize);
         densityCompute.SetFloat("boundsSize", terrainScale);
-        densityCompute.SetFloat("noiseHeightMultiplier", noiseHeightMultiplier);
-        densityCompute.SetFloat("noiseScale", noiseScale);
         densityCompute.SetInt("borderWidth", borderWidth);
         densityCompute.SetFloat("terrainSeed", terrainSeed);
-        densityCompute.SetFloat("terrainGradient", terrainGradient);
 
-        // Terrain zone parameters
-        densityCompute.SetFloat("flatnessThreshold", flatnessThreshold);
-        densityCompute.SetFloat("detail3DStrength", detail3DStrength);
+        // New terrain shape parameters
+        densityCompute.SetFloat("baseHeight", baseHeight);
+        densityCompute.SetFloat("terrainScale", featureScale);
+        densityCompute.SetFloat("terrainAmplitude", featureAmplitude);
+        densityCompute.SetInt("octaves", noiseOctaves);
+        densityCompute.SetFloat("persistence", noisePersistence);
+        densityCompute.SetFloat("lacunarity", noiseLacunarity);
+
+        // Feature parameters
+        densityCompute.SetFloat("warpStrength", domainWarpStrength);
+        densityCompute.SetFloat("hardFloorHeight", hardFloorHeight);
+        densityCompute.SetFloat("hardFloorBlend", hardFloorBlend);
+        densityCompute.SetFloat("cavesStrength", caveStrength);
+        densityCompute.SetFloat("ridgeStrength", ridgeStrength);
 
         // Border falloff parameters
         densityCompute.SetFloat("borderFalloffStart", borderFalloffStart);
@@ -643,7 +731,7 @@ public class TerrainGenerator : MonoBehaviour
         Debug.Log($"- Last chunks checked: {_lastTotalChunksChecked}");
         Debug.Log($"- Query time: {timer.ElapsedMilliseconds}ms");
         Debug.Log($"- Spatial region: From {minCell} to {maxCell}");
-        Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {terrainScale / worldChunks}");
+        Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {terrainScale / worldSize}");
 
         ApplyExplosionToDensity(worldPosition, radius, strength);
         StartCoroutine(RegenerateChunksProgressively(affectedChunks, worldPosition));
