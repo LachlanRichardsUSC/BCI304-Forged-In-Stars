@@ -27,7 +27,6 @@ public class ExplodingObject : MonoBehaviour
         // Find terrain generator if not assigned
         if (terrainGenerator == null)
         {
-            // terrainGenerator = FindObjectOfType<TerrainGenerator>();
             terrainGenerator = Object.FindAnyObjectByType<TerrainGenerator>();
             if (terrainGenerator == null)
             {
@@ -62,7 +61,7 @@ public class ExplodingObject : MonoBehaviour
         // Use this object's position directly since it's already at ground level
         Vector3 explosionPosition = transform.position;
 
-        // Create explosion in terrain - radius and strength parameters are defined here only
+        // Create explosion in terrain
         terrainGenerator.CreateExplosion(explosionPosition, explosionRadius, explosionStrength);
 
         // Spawn visual effect if prefab is assigned
@@ -72,6 +71,6 @@ public class ExplodingObject : MonoBehaviour
             Destroy(effect, effectDuration);
         }
 
-        Debug.Log($"Explosion created at ground position ({explosionPosition})");
+        Debug.Log($"SDF explosion created at ground position ({explosionPosition})");
     }
 }

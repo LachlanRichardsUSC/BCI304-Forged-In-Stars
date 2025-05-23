@@ -1,70 +1,210 @@
 using System.Collections.Generic;
-
 using UnityEngine;
 
 /// <summary>
 /// Manages the generation of procedural terrain using marching cubes and compute shaders.
 /// </summary>
-/// <remarks>
-/// This class coordinates density field computation, mesh generation via marching cubes,
-/// and chunk management for efficient terrain rendering and modification.
-/// </remarks>
 public class TerrainGenerator : MonoBehaviour
 {
+    #region Enums and Classes
+
+    public enum TerrainPreset
+    {
+        Custom,
+        RollingHills,
+        Mountains,
+        FlatPlains,
+        Canyons,
+        Islands
+    }
+
+    #endregion
+
     #region Serialized Fields
 
-    [Header("Generation Settings")]
-    [SerializeField] private int numChunks = 5;
-    [SerializeField] private int numPointsPerAxis = 32;
-    [SerializeField] private float boundsSize = 600;
-    [SerializeField] private int borderWidth = 1;
-    [SerializeField] private float isoLevel = 0.0f;
-    [SerializeField] private bool useFlatShading = false;
+    [Header("Quick Setup")]
+    [SerializeField] private TerrainPreset preset = TerrainPreset.Custom;
+    [SerializeField][Tooltip("Apply the selected preset")] private bool applyPreset = false;
 
-    [Header("Terrain Sharpness")]
-    [SerializeField][Range(0.01f, 0.1f)] private float terrainGradient = 0.03f;
-    [Tooltip("Lower values create sharper terrain features, higher values create smoother transitions")]
+    [Header("World Structure")]
+    [SerializeField]
+    [Tooltip("Physical size of the entire terrain in world units")]
+    [Range(256, 2048)] private float terrainScale = 512f;
 
-    [Header("Noise Settings")]
-    [SerializeField] private float noiseScale = 1.5f;
-    [SerializeField] private float noiseHeightMultiplier = 0.5f;
-    [SerializeField] private int terrainSeed = 0;
-    [SerializeField] private bool randomizeSeed = false;
+    [SerializeField]
+    [Tooltip("Number of chunks in each dimension (5 = 5󬊅 = 125 chunks total)")]
+    [Range(1, 16)] private int worldChunks = 8;
 
-    [Header("Blur Settings")]
-    [SerializeField] private bool useBlur = true;
-    [SerializeField][Range(1, 5)] private int blurRadius = 1;
+    [SerializeField]
+    [Tooltip("Vertices per chunk edge. Higher = more detail but slower. (32 is usually good)")]
+    [Range(16, 128)] private int chunkResolution = 64;
 
-    [Header("References")]
+    [Header("Terrain Shape")]
+    [SerializeField]
+    [Tooltip("Base frequency of terrain features. Lower = larger features")]
+    [Range(0.01f, 8.0f)] private float noiseScale = 0.03f;
+
+    [SerializeField]
+    [Tooltip("Height multiplier for terrain. Higher = taller mountains/deeper valleys")]
+    [Range(0.1f, 16.0f)] private float noiseHeightMultiplier = 3.0f;
+
+    [SerializeField]
+    [Tooltip("Controls terrain slope steepness. Lower = sharper/steeper, Higher = gentler slopes")]
+    [Range(0.01f, 0.1f)] private float terrainGradient = 0.02f;
+
+    [Header("Terrain Features")]
+    [SerializeField]
+    [Tooltip("Percentage of terrain that becomes flat plateaus (0-1)")]
+    [Range(0.0f, 1.0f)] private float flatnessThreshold = 1.0f;
+
+    [SerializeField]
+    [Tooltip("Strength of 3D features like overhangs and caves. Keep low (0.1-0.3) for normal terrain")]
+    [Range(0.0f, 1.0f)] private float detail3DStrength = 0.25f;
+
+    [Header("Terrain Smoothing")]
+    [SerializeField]
+    [Tooltip("Apply smoothing to reduce jagged edges")]
+    private bool useBlur = true;
+
+    [SerializeField]
+    [Tooltip("Smoothing radius (1-2 for light smoothing, 3-5 for heavy)")]
+    [Range(1, 5)] private int blurRadius = 2;
+
+    [Header("World Edges")]
+    [SerializeField]
+    [Tooltip("Fade terrain to nothing at world borders")]
+    private bool enableBorderFalloff = true;
+
+    [SerializeField]
+    [Tooltip("How far from edge the fadeout begins (0 = at edge, 0.5 = halfway to center)")]
+    [Range(0.0f, 0.5f)] private float borderFalloffStart = 0.1f;
+
+    [SerializeField]
+    [Tooltip("How quickly terrain fades at borders (1 = gradual, 5 = sharp)")]
+    [Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
+
+    [SerializeField]
+    [Tooltip("Thickness of solid ground layer at world bottom")]
+    [Range(0, 5)] private int borderWidth = 1;
+
+    [Header("Generation")]
+    [SerializeField]
+    [Tooltip("Seed for random terrain generation")]
+    private int terrainSeed = 9806;
+
+    [SerializeField]
+    [Tooltip("Generate random seed on start")]
+    private bool randomizeSeed = false;
+
+    [SerializeField]
+    [Tooltip("Surface level for mesh generation (usually keep at 0)")]
+    [Range(-1.0f, 1.0f)] private float isoLevel = 0.0f;
+
+    [Header("Rendering")]
+    [SerializeField]
+    [Tooltip("Use flat shading for low-poly look")]
+    private bool useFlatShading = false;
+
+    [SerializeField]
+    [Tooltip("Material for the terrain")]
+    private Material material;
+
+    [SerializeField]
+    [Tooltip("Layer name for terrain collision")]
+    private string groundLayerName = "Ground";
+
+    [Header("Required Shaders")]
     [SerializeField] private ComputeShader meshCompute;
     [SerializeField] private ComputeShader densityCompute;
     [SerializeField] private ComputeShader blurCompute;
     [SerializeField] private ComputeShader explosionCompute;
-    [SerializeField] private Material material;
-    [SerializeField] private string groundLayerName = "Ground";
 
-    [Header("Terrain Zones")]
-    [SerializeField][Range(0.0f, 1.0f)] private float flatnessThreshold = 0.4f;
-    [SerializeField][Range(0.0f, 1.0f)] private float detail3DStrength = 0.2f;
+    [Header("Performance")]
+    [SerializeField]
+    [Tooltip("Chunks updated per frame during explosions")]
+    [Range(1, 10)] private int chunksPerFrame = 3;
 
-    [Header("Border Falloff")]
-    [SerializeField][Range(0.0f, 1.0f)] private float borderFalloffStart = 0.3f;
-    [SerializeField][Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
-    [SerializeField] private bool enableBorderFalloff = true;
+    [Header("Debug")]
+    [SerializeField] private bool debugVisualization = false;
 
-    [Header("Performance Tuning")]
-    [SerializeField][Range(1, 10)] private int chunksPerFrame = 3;
-    [Tooltip("Higher values = faster terrain updates but potential frame drops")]
+    #endregion
+
+    #region Preset Values
+
+    private void ApplyPresetValues(TerrainPreset presetType)
+    {
+        switch (presetType)
+        {
+            case TerrainPreset.RollingHills:
+                noiseScale = 1.2f;
+                noiseHeightMultiplier = 0.4f;
+                terrainGradient = 0.04f;
+                flatnessThreshold = 0.5f;
+                detail3DStrength = 0.1f;
+                useBlur = true;
+                blurRadius = 1;
+                enableBorderFalloff = true;
+                break;
+
+            case TerrainPreset.Mountains:
+                noiseScale = 0.8f;
+                noiseHeightMultiplier = 0.8f;
+                terrainGradient = 0.02f;
+                flatnessThreshold = 0.2f;
+                detail3DStrength = 0.25f;
+                useBlur = true;
+                blurRadius = 1;
+                enableBorderFalloff = true;
+                break;
+
+            case TerrainPreset.FlatPlains:
+                noiseScale = 2.5f;
+                noiseHeightMultiplier = 0.2f;
+                terrainGradient = 0.05f;
+                flatnessThreshold = 0.8f;
+                detail3DStrength = 0.05f;
+                useBlur = true;
+                blurRadius = 2;
+                enableBorderFalloff = false;
+                break;
+
+            case TerrainPreset.Canyons:
+                noiseScale = 0.6f;
+                noiseHeightMultiplier = 0.7f;
+                terrainGradient = 0.015f;
+                flatnessThreshold = 0.3f;
+                detail3DStrength = 0.35f;
+                useBlur = false;
+                blurRadius = 1;
+                enableBorderFalloff = true;
+                break;
+
+            case TerrainPreset.Islands:
+                noiseScale = 1.5f;
+                noiseHeightMultiplier = 0.5f;
+                terrainGradient = 0.03f;
+                flatnessThreshold = 0.4f;
+                detail3DStrength = 0.15f;
+                useBlur = true;
+                blurRadius = 1;
+                enableBorderFalloff = true;
+                borderFalloffStart = 0.15f;
+                borderFalloffSteepness = 3.0f;
+                break;
+        }
+
+        Debug.Log($"Applied {presetType} preset");
+    }
 
     #endregion
 
     #region Public Properties
 
     /// <summary>Gets the number of points per chunk axis.</summary>
-    public int NumPointsPerAxis => numPointsPerAxis;
+    public int NumPointsPerAxis => chunkResolution;
 
     /// <summary>Gets the total size of the terrain bounds.</summary>
-    public float BoundsSize => boundsSize;
+    public float BoundsSize => terrainScale;
 
     /// <summary>Gets the density texture used for terrain generation.</summary>
     public RenderTexture DensityTexture => _densityTexture;
@@ -103,14 +243,10 @@ public class TerrainGenerator : MonoBehaviour
 
     // Spatial partitioning for efficient chunk lookup
     private Dictionary<Vector3Int, Chunk> _chunkLookup;
-
-    // Spatial hash for fast radius queries
     private Dictionary<Vector3Int, List<Chunk>> _spatialHash;
-    private float _spatialCellSize = 100f; // Size of each spatial hash cell
+    private float _spatialCellSize = 100f;
 
-    // Debug visualization
-    [Header("Debug")]
-    [SerializeField] private bool debugVisualization = false;
+    // Debug
     private HashSet<Vector3Int> _lastCheckedCells;
     private int _lastTotalChunksChecked;
 
@@ -118,9 +254,6 @@ public class TerrainGenerator : MonoBehaviour
 
     #region Unity Lifecycle Methods
 
-    /// <summary>
-    /// Initializes and generates terrain when the component starts.
-    /// </summary>
     private void Start()
     {
         ValidateComponents();
@@ -128,34 +261,33 @@ public class TerrainGenerator : MonoBehaviour
         GenerateTerrain();
     }
 
-    /// <summary>
-    /// Handles input for terrain regeneration.
-    /// </summary>
     private void Update()
     {
-        // Press R key to regenerate terrain during play mode
         if (Input.GetKeyDown(KeyCode.R))
         {
-            Debug.Log("Regenerating terrain via keypress...");
+            Debug.Log("Regenerating terrain...");
             RegenerateTerrainRuntime();
         }
     }
 
-    /// <summary>
-    /// Releases all resources when the component is destroyed.
-    /// </summary>
     private void OnDestroy()
     {
         ReleaseResources();
+    }
+
+    private void OnValidate()
+    {
+        if (applyPreset && preset != TerrainPreset.Custom)
+        {
+            ApplyPresetValues(preset);
+            applyPreset = false;
+        }
     }
 
     #endregion
 
     #region Initialization Methods
 
-    /// <summary>
-    /// Validates that all required components are assigned.
-    /// </summary>
     private void ValidateComponents()
     {
         if (meshCompute == null)
@@ -172,26 +304,20 @@ public class TerrainGenerator : MonoBehaviour
             Debug.LogWarning($"Layer '{groundLayerName}' not found. Using default layer.");
     }
 
-    /// <summary>
-    /// Initializes all resources needed for terrain generation.
-    /// </summary>
     private void Initialize()
     {
         if (_initialized)
             ReleaseResources();
 
-        // Calculate texture size based on chunk count and resolution
-        _textureSize = numChunks * (numPointsPerAxis - 1) + 1;
+        _textureSize = worldChunks * (chunkResolution - 1) + 1;
 
-        // Randomize seed if enabled
         if (randomizeSeed)
         {
             terrainSeed = Random.Range(0, 10000);
             Debug.Log($"Using random terrain seed: {terrainSeed}");
         }
 
-        // Initialize spatial hash
-        _spatialCellSize = boundsSize / (numChunks * 0.5f); // Size calibrated to chunk dimensions
+        _spatialCellSize = terrainScale / (worldChunks * 0.5f);
         _spatialHash = new Dictionary<Vector3Int, List<Chunk>>();
 
         InitTextures();
@@ -201,21 +327,15 @@ public class TerrainGenerator : MonoBehaviour
         _initialized = true;
     }
 
-    /// <summary>
-    /// Initializes the 3D textures for density and optional blur.
-    /// </summary>
     private void InitTextures()
     {
-        // Create primary density texture
         Create3DTexture(ref _densityTexture, _textureSize, "Density Texture");
 
-        // Create blur texture if enabled
         if (useBlur)
         {
             Create3DTexture(ref _blurredDensityTexture, _textureSize, "Blurred Density Texture");
         }
 
-        // Set up compute shader textures
         densityCompute.SetTexture(0, "DensityTexture", _densityTexture);
 
         if (useBlur)
@@ -230,14 +350,11 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Creates the necessary compute buffers for vertex and triangle data.
-    /// </summary>
     private void CreateBuffers()
     {
-        int numVoxelsPerAxis = numPointsPerAxis - 1;
+        int numVoxelsPerAxis = chunkResolution - 1;
         int numVoxels = numVoxelsPerAxis * numVoxelsPerAxis * numVoxelsPerAxis;
-        int maxTriangleCount = numVoxels * 5; // Conservative estimate of max triangles per voxel
+        int maxTriangleCount = numVoxels * 5;
         int maxVertexCount = maxTriangleCount * 3;
 
         _triCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
@@ -245,20 +362,15 @@ public class TerrainGenerator : MonoBehaviour
         _vertexDataArray = new VertexData[maxVertexCount];
     }
 
-    /// <summary>
-    /// Creates the terrain chunks with appropriate sizes and positions.
-    /// </summary>
     private void CreateChunks()
     {
-        int chunksPerAxis = numChunks;
+        int chunksPerAxis = worldChunks;
         _chunkLookup = new Dictionary<Vector3Int, Chunk>();
 
-        // Allocate array for all chunks
         _chunks = new Chunk[chunksPerAxis * chunksPerAxis * chunksPerAxis];
-        float chunkSize = boundsSize / chunksPerAxis;
+        float chunkSize = terrainScale / chunksPerAxis;
         int index = 0;
 
-        // Create chunks in a 3D grid
         for (int y = 0; y < chunksPerAxis; y++)
         {
             for (int x = 0; x < chunksPerAxis; x++)
@@ -267,30 +379,24 @@ public class TerrainGenerator : MonoBehaviour
                 {
                     Vector3Int coord = new Vector3Int(x, y, z);
 
-                    // Center chunks around origin (0,0,0)
                     Vector3 centre = new Vector3(
                         (-(chunksPerAxis - 1f) / 2 + x) * chunkSize,
                         (-(chunksPerAxis - 1f) / 2 + y) * chunkSize,
                         (-(chunksPerAxis - 1f) / 2 + z) * chunkSize
                     );
 
-                    // Create game object to hold the chunk
                     GameObject meshHolder = new GameObject($"Chunk ({x}, {y}, {z})")
                     {
                         transform = { parent = transform },
                         layer = _groundLayer
                     };
 
-                    // Initialize chunk and set material
                     Chunk chunk = new Chunk(coord, centre, chunkSize, meshHolder);
                     chunk.SetMaterial(material);
                     chunk.SetLayer(_groundLayer);
 
-                    // Store chunk references
                     _chunks[index] = chunk;
                     _chunkLookup[coord] = chunk;
-
-                    // Add to spatial hash
                     AddChunkToSpatialHash(chunk);
 
                     index++;
@@ -299,30 +405,19 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Adds a chunk to the spatial hash system for efficient spatial queries.
-    /// </summary>
-    /// <param name="chunk">The chunk to add to the spatial hash.</param>
     private void AddChunkToSpatialHash(Chunk chunk)
     {
-        // Get the spatial cell coordinate for this chunk
         Vector3Int cell = WorldToSpatialCell(chunk.Centre);
 
-        // Create list for this cell if it doesn't exist
         if (!_spatialHash.TryGetValue(cell, out var chunks))
         {
             chunks = new List<Chunk>();
             _spatialHash[cell] = chunks;
         }
 
-        // Add chunk to the appropriate cell
         chunks.Add(chunk);
     }
 
-    /// <summary>
-    /// Removes a chunk from the spatial hash system.
-    /// </summary>
-    /// <param name="chunk">The chunk to remove from the spatial hash.</param>
     private void RemoveChunkFromSpatialHash(Chunk chunk)
     {
         Vector3Int cell = WorldToSpatialCell(chunk.Centre);
@@ -331,7 +426,6 @@ public class TerrainGenerator : MonoBehaviour
         {
             chunks.Remove(chunk);
 
-            // Remove the cell entirely if empty
             if (chunks.Count == 0)
             {
                 _spatialHash.Remove(cell);
@@ -339,11 +433,6 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Converts a world position to a spatial hash cell coordinate.
-    /// </summary>
-    /// <param name="worldPos">The world position to convert.</param>
-    /// <returns>The spatial hash cell coordinate.</returns>
     private Vector3Int WorldToSpatialCell(Vector3 worldPos)
     {
         return new Vector3Int(
@@ -353,30 +442,21 @@ public class TerrainGenerator : MonoBehaviour
         );
     }
 
-    /// <summary>
-    /// Creates a 3D texture with the specified settings.
-    /// </summary>
-    /// <param name="texture">Reference to the texture to be created or updated.</param>
-    /// <param name="size">The size of the 3D texture (same for all dimensions).</param>
-    /// <param name="textureName">Name for the texture for debugging.</param>
     private void Create3DTexture(ref RenderTexture texture, int size, string textureName)
     {
         var format = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SFloat;
 
-        // Check if we need to create a new texture
         bool needsNewTexture = texture == null || !texture.IsCreated() ||
                               texture.width != size || texture.height != size ||
                               texture.volumeDepth != size || texture.graphicsFormat != format;
 
         if (needsNewTexture)
         {
-            // Release existing texture
             if (texture != null && texture.IsCreated())
             {
                 texture.Release();
             }
 
-            // Create new texture with proper settings
             texture = new RenderTexture(size, size, 0)
             {
                 graphicsFormat = format,
@@ -395,18 +475,13 @@ public class TerrainGenerator : MonoBehaviour
 
     #region Terrain Generation Methods
 
-    /// <summary>
-    /// Generates the complete terrain by computing density and creating all chunks.
-    /// </summary>
     private void GenerateTerrain()
     {
         _timerGeneration = System.Diagnostics.Stopwatch.StartNew();
         _totalVerts = 0;
 
-        // Compute density field
         ComputeDensity();
 
-        // Generate all chunks
         foreach (var chunk in _chunks)
         {
             GenerateChunk(chunk);
@@ -417,33 +492,28 @@ public class TerrainGenerator : MonoBehaviour
         Debug.Log($"Total vertices: {_totalVerts}");
     }
 
-    /// <summary>
-    /// Computes the density field using the density and blur compute shaders.
-    /// </summary>
     private void ComputeDensity()
     {
-        // Set common parameters
+        // Pass parameters exactly as the shader expects them
         densityCompute.SetInt("textureSize", _textureSize);
-        densityCompute.SetFloat("boundsSize", boundsSize);
+        densityCompute.SetFloat("boundsSize", terrainScale);
         densityCompute.SetFloat("noiseHeightMultiplier", noiseHeightMultiplier);
         densityCompute.SetFloat("noiseScale", noiseScale);
         densityCompute.SetInt("borderWidth", borderWidth);
         densityCompute.SetFloat("terrainSeed", terrainSeed);
         densityCompute.SetFloat("terrainGradient", terrainGradient);
 
-        // Set terrain zone parameters
+        // Terrain zone parameters
         densityCompute.SetFloat("flatnessThreshold", flatnessThreshold);
         densityCompute.SetFloat("detail3DStrength", detail3DStrength);
 
-        // Set border falloff parameters
+        // Border falloff parameters
         densityCompute.SetFloat("borderFalloffStart", borderFalloffStart);
         densityCompute.SetFloat("borderFalloffSteepness", borderFalloffSteepness);
         densityCompute.SetInt("enableBorderFalloff", enableBorderFalloff ? 1 : 0);
 
-        // Dispatch density computation
         ComputeHelper.Dispatch(densityCompute, _textureSize, _textureSize, _textureSize);
 
-        // Apply blur if enabled
         if (useBlur)
         {
             blurCompute.SetInt("textureSize", _textureSize);
@@ -452,35 +522,26 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Generates a mesh for a specific chunk using marching cubes.
-    /// </summary>
-    /// <param name="chunk">The chunk to generate.</param>
     private void GenerateChunk(Chunk chunk)
     {
         if (chunk == null)
             return;
 
-        int numVoxelsPerAxis = numPointsPerAxis - 1;
+        int numVoxelsPerAxis = chunkResolution - 1;
 
-        // Setup mesh compute shader parameters
         meshCompute.SetInt("textureSize", _textureSize);
-        meshCompute.SetInt("numPointsPerAxis", numPointsPerAxis);
+        meshCompute.SetInt("numPointsPerAxis", chunkResolution);
         meshCompute.SetFloat("isoLevel", isoLevel);
-        meshCompute.SetFloat("boundsSize", boundsSize);
+        meshCompute.SetFloat("boundsSize", terrainScale);
 
-        // Reset triangle buffer counter and set buffer
         _triangleBuffer.SetCounterValue(0);
         meshCompute.SetBuffer(0, "triangles", _triangleBuffer);
 
-        // Set chunk coordinates for the compute shader
         Vector3 chunkCoord = (Vector3)chunk.Id * numVoxelsPerAxis;
         meshCompute.SetVector("chunkCoord", chunkCoord);
 
-        // Run marching cubes algorithm
         ComputeHelper.Dispatch(meshCompute, numVoxelsPerAxis, numVoxelsPerAxis, numVoxelsPerAxis);
 
-        // Get vertex count from indirect buffer
         int[] vertexCountData = new int[1];
         _triCountBuffer.SetData(vertexCountData);
         ComputeBuffer.CopyCount(_triangleBuffer, _triCountBuffer, 0);
@@ -488,7 +549,6 @@ public class TerrainGenerator : MonoBehaviour
 
         int numVertices = vertexCountData[0] * 3;
 
-        // Create mesh if vertices were generated
         if (numVertices > 0)
         {
             _triangleBuffer.GetData(_vertexDataArray, 0, 0, numVertices);
@@ -497,7 +557,6 @@ public class TerrainGenerator : MonoBehaviour
         }
         else
         {
-            // Handle empty chunks
             chunk.CreateMesh(_vertexDataArray, 0, useFlatShading);
         }
     }
@@ -506,19 +565,13 @@ public class TerrainGenerator : MonoBehaviour
 
     #region Public Methods
 
-    /// <summary>
-    /// Sets the material for all chunks in the terrain.
-    /// </summary>
-    /// <param name="newMaterial">The material to apply to all chunks.</param>
     public void SetMaterial(Material newMaterial)
     {
         if (newMaterial == null)
             return;
 
-        // Store the material reference
         material = newMaterial;
 
-        // Apply to existing chunks
         if (_chunks != null)
         {
             foreach (var chunk in _chunks)
@@ -531,45 +584,25 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Updates all chunk materials without regenerating terrain.
-    /// </summary>
     public void UpdateChunkMaterials()
     {
         SetMaterial(material);
     }
 
-    /// <summary>
-    /// Regenerates the terrain during runtime.
-    /// </summary>
     public void RegenerateTerrainRuntime()
     {
         Debug.Log("Starting terrain regeneration...");
-
-        // Clean up existing resources
         ReleaseResources();
-
-        // Re-initialize and generate new terrain
         Initialize();
         GenerateTerrain();
     }
 
-    /// <summary>
-    /// Sets a new seed and regenerates the terrain.
-    /// </summary>
-    /// <param name="newSeed">The new seed value to use.</param>
     public void SetSeed(int newSeed)
     {
         terrainSeed = newSeed;
         RegenerateTerrainRuntime();
     }
 
-    // <summary>
-    /// Creates an explosion effect that modifies the terrain density at the specified position.
-    /// </summary>
-    /// <param name="worldPosition">Position in world space where the explosion should occur.</param>
-    /// <param name="radius">Radius of the explosion effect.</param>
-    /// <param name="strength">Strength of the explosion (higher values = bigger crater).</param>
     public void CreateExplosion(Vector3 worldPosition, float radius, float strength)
     {
         if (explosionCompute == null)
@@ -580,7 +613,6 @@ public class TerrainGenerator : MonoBehaviour
 
         System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
 
-        // Find chunks affected by the explosion
         List<Chunk> affectedChunks = FindChunksInRadius(worldPosition, radius);
         timer.Stop();
 
@@ -590,10 +622,9 @@ public class TerrainGenerator : MonoBehaviour
             return;
         }
 
-        // Calculate texture space coordinates for debug logging
-        Vector3 normalizedPos = (worldPosition / boundsSize) + new Vector3(0.5f, 0.5f, 0.5f);
+        Vector3 normalizedPos = (worldPosition / terrainScale) + new Vector3(0.5f, 0.5f, 0.5f);
         Vector3 texturePos = normalizedPos * _textureSize;
-        float textureRadius = radius / boundsSize * _textureSize;
+        float textureRadius = radius / terrainScale * _textureSize;
         Vector3Int minBound = Vector3Int.FloorToInt(texturePos - new Vector3(textureRadius, textureRadius, textureRadius));
         Vector3Int maxBound = Vector3Int.CeilToInt(texturePos + new Vector3(textureRadius, textureRadius, textureRadius));
         minBound = Vector3Int.Max(Vector3Int.zero, minBound);
@@ -602,24 +633,19 @@ public class TerrainGenerator : MonoBehaviour
         int sizeY = maxBound.y - minBound.y + 1;
         int sizeZ = maxBound.z - minBound.z + 1;
 
-        // Add the debug log
         Debug.Log($"Explosion at {worldPosition} with radius {radius} affecting {affectedChunks.Count} chunks. Region size: {sizeX}x{sizeY}x{sizeZ}");
 
-        // Apply explosion to density texture
         Vector3Int minCell = WorldToSpatialCell(worldPosition - new Vector3(radius, radius, radius));
         Vector3Int maxCell = WorldToSpatialCell(worldPosition + new Vector3(radius, radius, radius));
 
-        // Log performance data
         Debug.Log($"Explosion at {worldPosition}, radius {radius}:");
         Debug.Log($"- Found {affectedChunks.Count} affected chunks out of {_chunks.Length} total");
         Debug.Log($"- Last chunks checked: {_lastTotalChunksChecked}");
         Debug.Log($"- Query time: {timer.ElapsedMilliseconds}ms");
         Debug.Log($"- Spatial region: From {minCell} to {maxCell}");
-        Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {boundsSize / numChunks}");
+        Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {terrainScale / worldChunks}");
 
         ApplyExplosionToDensity(worldPosition, radius, strength);
-
-        // Regenerate only affected chunks for better performance
         StartCoroutine(RegenerateChunksProgressively(affectedChunks, worldPosition));
     }
 
@@ -627,12 +653,8 @@ public class TerrainGenerator : MonoBehaviour
 
     #region Helper Methods
 
-    /// <summary>
-    /// Releases all allocated resources.
-    /// </summary>
     private void ReleaseResources()
     {
-        // Release compute buffers
         if (_triangleBuffer != null)
         {
             _triangleBuffer.Release();
@@ -645,7 +667,6 @@ public class TerrainGenerator : MonoBehaviour
             _triCountBuffer = null;
         }
 
-        // Release render textures
         if (_densityTexture != null && _densityTexture.IsCreated())
         {
             _densityTexture.Release();
@@ -658,14 +679,12 @@ public class TerrainGenerator : MonoBehaviour
             _blurredDensityTexture = null;
         }
 
-        // Release all chunks
         if (_chunks != null)
         {
             foreach (Chunk chunk in _chunks)
             {
                 if (chunk != null)
                 {
-                    // Destroy the GameObject if it exists
                     if (chunk.gameObject != null)
                     {
                         DestroyImmediate(chunk.gameObject);
@@ -676,52 +695,35 @@ public class TerrainGenerator : MonoBehaviour
             _chunks = null;
         }
 
-        // Clear data structures
         if (_chunkLookup != null)
         {
             _chunkLookup.Clear();
             _chunkLookup = null;
         }
 
-        // Clear spatial hash
         if (_spatialHash != null)
         {
             _spatialHash.Clear();
             _spatialHash = null;
         }
 
-        // Clear large arrays
         _vertexDataArray = null;
-
-        // Reset state
         _initialized = false;
     }
 
-    /// <summary>
-    /// Finds all chunks that intersect with a sphere defined by center and radius.
-    /// Uses spatial hash for efficient O(k) lookup where k is the number of relevant chunks.
-    /// </summary>
-    /// <param name="center">The center of the sphere in world space.</param>
-    /// <param name="radius">The radius of the sphere.</param>
-    /// <returns>A list of chunks that intersect with the sphere.</returns>
     private List<Chunk> FindChunksInRadius(Vector3 center, float radius)
     {
-        // Use spatial hash for efficient lookup
         List<Chunk> affectedChunks = new List<Chunk>();
         float sqrRadius = radius * radius;
 
-        // Track performance metrics
         int chunkCheckCount = 0;
         _lastCheckedCells = new HashSet<Vector3Int>();
 
-        // Calculate the min and max cell coordinates that could be affected
         Vector3Int minCellCoord = WorldToSpatialCell(center - new Vector3(radius, radius, radius));
         Vector3Int maxCellCoord = WorldToSpatialCell(center + new Vector3(radius, radius, radius));
 
-        // Track chunks we've already checked to avoid duplicates (chunks can appear in multiple cells)
         HashSet<Chunk> checkedChunks = new HashSet<Chunk>();
 
-        // Only check cells that might be affected
         for (int x = minCellCoord.x; x <= maxCellCoord.x; x++)
         {
             for (int y = minCellCoord.y; y <= maxCellCoord.y; y++)
@@ -729,24 +731,20 @@ public class TerrainGenerator : MonoBehaviour
                 for (int z = minCellCoord.z; z <= maxCellCoord.z; z++)
                 {
                     Vector3Int cellCoord = new Vector3Int(x, y, z);
-                    _lastCheckedCells.Add(cellCoord); // Track for visualization
+                    _lastCheckedCells.Add(cellCoord);
 
-                    // Check if this cell contains any chunks
                     if (_spatialHash.TryGetValue(cellCoord, out var chunksInCell))
                     {
                         foreach (var chunk in chunksInCell)
                         {
-                            // Skip if we've already checked this chunk
                             if (checkedChunks.Contains(chunk))
                                 continue;
 
                             checkedChunks.Add(chunk);
-                            chunkCheckCount++; // Count total chunks examined
+                            chunkCheckCount++;
 
-                            // Calculate the closest point on the chunk to the explosion center
                             Vector3 closestPoint = GetClosestPointOnChunk(chunk, center);
 
-                            // Check if this closest point is within explosion radius
                             if ((center - closestPoint).sqrMagnitude <= sqrRadius)
                             {
                                 affectedChunks.Add(chunk);
@@ -757,30 +755,20 @@ public class TerrainGenerator : MonoBehaviour
             }
         }
 
-        // Store performance metric
         _lastTotalChunksChecked = chunkCheckCount;
 
-        // Log spatial query statistics
         Debug.Log($"Spatial query stats: Checked {chunkCheckCount} chunks across {_lastCheckedCells.Count} cells " +
                  $"out of {_chunks.Length} total chunks");
 
         return affectedChunks;
     }
 
-    /// <summary>
-    /// Gets the closest point on a chunk to a target position.
-    /// </summary>
-    /// <param name="chunk">The chunk to check.</param>
-    /// <param name="targetPos">The target position.</param>
-    /// <returns>The closest point on the chunk to the target position.</returns>
     private Vector3 GetClosestPointOnChunk(Chunk chunk, Vector3 targetPos)
     {
-        // Calculate chunk bounds
         Vector3 halfSize = Vector3.one * chunk.Size * 0.5f;
         Vector3 min = chunk.Centre - halfSize;
         Vector3 max = chunk.Centre + halfSize;
 
-        // Clamp target position to chunk bounds
         return new Vector3(
             Mathf.Clamp(targetPos.x, min.x, max.x),
             Mathf.Clamp(targetPos.y, min.y, max.y),
@@ -788,67 +776,44 @@ public class TerrainGenerator : MonoBehaviour
         );
     }
 
-    /// <summary>
-    /// Applies explosion effect to the density texture.
-    /// Only processes the affected region for better performance.
-    /// </summary>
-    /// <param name="worldPosition">The world space position of the explosion.</param>
-    /// <param name="radius">The radius of the explosion.</param>
-    /// <param name="strength">The strength of the explosion.</param>
     private void ApplyExplosionToDensity(Vector3 worldPosition, float radius, float strength)
     {
-        // Calculate texture space coordinates
-        Vector3 normalizedPos = (worldPosition / boundsSize) + new Vector3(0.5f, 0.5f, 0.5f);
+        Vector3 normalizedPos = (worldPosition / terrainScale) + new Vector3(0.5f, 0.5f, 0.5f);
         Vector3 texturePos = normalizedPos * _textureSize;
 
-        // Convert world-space radius to texture-space radius
-        float textureRadius = radius / boundsSize * _textureSize;
+        float textureRadius = radius / terrainScale * _textureSize;
 
-        // Calculate affected region bounds (only process what's needed)
         Vector3Int minBound = Vector3Int.FloorToInt(texturePos - new Vector3(textureRadius, textureRadius, textureRadius));
         Vector3Int maxBound = Vector3Int.CeilToInt(texturePos + new Vector3(textureRadius, textureRadius, textureRadius));
 
-        // Clamp to texture boundaries
         minBound = Vector3Int.Max(Vector3Int.zero, minBound);
         maxBound = Vector3Int.Min(new Vector3Int(_textureSize - 1, _textureSize - 1, _textureSize - 1), maxBound);
 
-        // Calculate region dimensions
         int sizeX = maxBound.x - minBound.x + 1;
         int sizeY = maxBound.y - minBound.y + 1;
         int sizeZ = maxBound.z - minBound.z + 1;
 
-        // Select appropriate texture based on blur setting
         RenderTexture targetTexture = useBlur ? _blurredDensityTexture : _densityTexture;
 
-        // Set compute shader parameters
-        explosionCompute.SetVector("regionMin", new Vector4(minBound.x, minBound.y, minBound.z, 0));
-        explosionCompute.SetVector("regionMax", new Vector4(maxBound.x, maxBound.y, maxBound.z, 0));
+        explosionCompute.SetInts("regionMin", minBound.x, minBound.y, minBound.z);
+        explosionCompute.SetInts("regionMax", maxBound.x, maxBound.y, maxBound.z);
         explosionCompute.SetTexture(0, "DensityTexture", targetTexture);
         explosionCompute.SetVector("explosionCenter", texturePos);
         explosionCompute.SetFloat("radius", textureRadius);
         explosionCompute.SetFloat("strength", strength);
         explosionCompute.SetInt("textureSize", _textureSize);
-        explosionCompute.SetFloat("boundsSize", boundsSize);
+        explosionCompute.SetFloat("boundsSize", terrainScale);
         explosionCompute.SetFloat("isoLevel", isoLevel);
 
-        // Only dispatch compute shader for the affected region
         ComputeHelper.Dispatch(explosionCompute, sizeX, sizeY, sizeZ);
     }
 
-    /// <summary>
-    /// Regenerates chunks progressively over multiple frames to maintain performance.
-    /// </summary>
-    /// <param name="chunks">The list of chunks to regenerate.</param>
-    /// <param name="explosionCenter">The center of the explosion for sorting.</param>
-    /// <returns>An IEnumerator for coroutine execution.</returns>
     private System.Collections.IEnumerator RegenerateChunksProgressively(List<Chunk> chunks, Vector3 explosionCenter)
     {
-        // Sort chunks by distance to explosion center for better visual experience
         chunks.Sort((a, b) =>
             Vector3.Distance(a.Centre, explosionCenter).CompareTo(
             Vector3.Distance(b.Centre, explosionCenter)));
 
-        // Process chunks over multiple frames for better performance
         for (int i = 0; i < chunks.Count; i += chunksPerFrame)
         {
             float startTime = Time.realtimeSinceStartup;
@@ -862,18 +827,15 @@ public class TerrainGenerator : MonoBehaviour
             float elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
             Debug.Log($"Updated {count} chunks in {elapsed:F2}ms");
 
-            // Wait until next frame to continue processing
             yield return null;
         }
     }
 
     private void OnDrawGizmos()
     {
-        // Only draw in play mode when debugging is enabled
         if (!Application.isPlaying || !debugVisualization)
             return;
 
-        // Draw chunk boundaries
         if (_chunks != null)
         {
             Gizmos.color = Color.blue;
@@ -884,10 +846,9 @@ public class TerrainGenerator : MonoBehaviour
             }
         }
 
-        // Draw spatial hash cells that were checked in the last explosion
         if (_lastCheckedCells != null)
         {
-            Gizmos.color = new Color(1f, 1f, 0f, 1f); // Semi-transparent yellow
+            Gizmos.color = new Color(1f, 1f, 0f, 1f);
 
             foreach (var cell in _lastCheckedCells)
             {
@@ -900,7 +861,7 @@ public class TerrainGenerator : MonoBehaviour
                 Gizmos.DrawWireCube(cellCenter, Vector3.one * _spatialCellSize);
             }
         }
-
     }
+
+    #endregion
 }
-#endregion
