@@ -68,7 +68,7 @@ public class TerrainGenerator : MonoBehaviour
     [Header("Terrain Features")]
     [SerializeField]
     [Tooltip("Warps terrain for more organic shapes")]
-    [Range(0.0f, 1.0f)] private float domainWarpStrength = 0.3f;
+    [Range(0.0f, 6.0f)] private float domainWarpStrength = 0.3f;
 
     [SerializeField]
     [Tooltip("Creates caves and 3D overhangs")]
