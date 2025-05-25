@@ -1,57 +1,96 @@
 using UnityEngine;
 
 /// <summary>
-/// Handles ground detection for any character or entity that needs it.
-/// Can be used by both player characters and AI.
+/// Multi-point ground detection system optimized for large characters.
+/// Simply detects if character is grounded for jump/stamina mechanics.
 /// </summary>
 public class GroundDetector : MonoBehaviour
 {
-    [Header("Ground Check Settings")]
-    [Tooltip("Radius of the sphere used for ground detection")]
-    [SerializeField] private float m_SphereRadius = 0.25f;
+    [Header("Ground Check Configuration")]
+    [Tooltip("Height offset from character base to start ground checks")]
+    [SerializeField] private float m_GroundCheckStartHeight = 0.5f;
 
-    [Tooltip("How far down to check for ground")]
-    [SerializeField] private float m_GroundCheckDistance = 0.4f;
+    [Tooltip("Maximum distance to check for ground")]
+    [SerializeField] private float m_GroundCheckDistance = 1.5f;
 
-    [Tooltip("Offset from character's base for starting the ground check")]
-    [SerializeField] private float m_GroundCheckOffset = 0.3f;
+    [Tooltip("Radius for the detection pattern (scales with character size)")]
+    [SerializeField] private float m_DetectionRadius = 1.0f;
 
-    [Tooltip("Which layers should be considered as ground")]
+    [Tooltip("Layers considered as ground")]
     [SerializeField] private LayerMask m_GroundLayers;
 
-    // Cached result of ground check
+    [Header("Debug")]
+    [SerializeField] private bool m_ShowDebugRays = true;
+
+    // Detection state
     private bool m_IsGrounded;
+    private float m_DistanceToGround;
 
-    // Store the hit info for debug visualization
-    private RaycastHit m_LastGroundHit;
+    // Performance optimization - preallocate arrays
+    private readonly Vector3[] m_RaycastOffsets = new Vector3[5];
+    private readonly RaycastHit[] m_HitResults = new RaycastHit[5];
 
-    // Event that fires when grounded state changes
+    // Events
     public event System.Action<bool> OnGroundStateChanged;
 
-    // Public property to check if grounded
+    // Public properties
     public bool IsGrounded => m_IsGrounded;
+    public float DistanceToGround => m_DistanceToGround;
+
+    private void Awake()
+    {
+        InitializeRaycastPattern();
+    }
+
+    private void InitializeRaycastPattern()
+    {
+        // Create an X pattern of raycast points
+        // Center point
+        m_RaycastOffsets[0] = Vector3.zero;
+
+        // Four corner points (scaled to character size)
+        float offset = m_DetectionRadius * 0.7f; // 70% of radius for good coverage
+        m_RaycastOffsets[1] = new Vector3(offset, 0, offset);    // Front-right
+        m_RaycastOffsets[2] = new Vector3(-offset, 0, offset);   // Front-left
+        m_RaycastOffsets[3] = new Vector3(offset, 0, -offset);   // Back-right
+        m_RaycastOffsets[4] = new Vector3(-offset, 0, -offset);  // Back-left
+    }
 
     /// <summary>
-    /// Performs the ground check using SphereCast
+    /// Performs multi-point ground detection
     /// </summary>
-    /// <returns>True if ground is detected, false otherwise</returns>
     public bool CheckGround()
     {
-        // Calculate start position of the ground check
-        Vector3 origin = transform.position + Vector3.up * m_GroundCheckOffset;
         bool wasGrounded = m_IsGrounded;
 
-        // Perform the sphere cast
-        m_IsGrounded = Physics.SphereCast(
-            origin,                     // Start position
-            m_SphereRadius,            // Radius of the sphere
-            Vector3.down,              // Direction to check
-            out m_LastGroundHit,       // Store hit information
-            m_GroundCheckDistance,     // How far to check
-            m_GroundLayers            // Which layers to check against
-        );
+        // Reset detection state
+        m_IsGrounded = false;
+        m_DistanceToGround = float.MaxValue;
 
-        // Notify listeners if grounded state changed
+        float closestDistance = float.MaxValue;
+
+        // Perform raycasts from each point
+        for (int i = 0; i < m_RaycastOffsets.Length; i++)
+        {
+            Vector3 rayOrigin = transform.position + transform.TransformDirection(m_RaycastOffsets[i]);
+            rayOrigin.y += m_GroundCheckStartHeight;
+
+            if (Physics.Raycast(rayOrigin, Vector3.down, out m_HitResults[i],
+                m_GroundCheckDistance + m_GroundCheckStartHeight, m_GroundLayers))
+            {
+                float distance = m_HitResults[i].distance - m_GroundCheckStartHeight;
+                closestDistance = Mathf.Min(closestDistance, distance);
+            }
+        }
+
+        // Consider grounded if any ray hit within threshold
+        if (closestDistance < float.MaxValue)
+        {
+            m_IsGrounded = closestDistance <= 0.1f; // Small threshold for ground contact
+            m_DistanceToGround = closestDistance;
+        }
+
+        // Fire event if state changed
         if (wasGrounded != m_IsGrounded)
         {
             OnGroundStateChanged?.Invoke(m_IsGrounded);
@@ -60,31 +99,44 @@ public class GroundDetector : MonoBehaviour
         return m_IsGrounded;
     }
 
-    /// <summary>
-    /// Draws debug visualization of the ground check in the Scene view
-    /// </summary>
     private void OnDrawGizmos()
     {
-        if (!enabled) return;
+        if (!m_ShowDebugRays || !enabled) return;
 
-        // Calculate start and end positions
-        Vector3 origin = transform.position + Vector3.up * m_GroundCheckOffset;
-        Vector3 end = origin + Vector3.down * m_GroundCheckDistance;
-
-        // Draw the sphere cast path
-        Gizmos.color = m_IsGrounded ? Color.green : Color.red;
-
-        // Draw start sphere
-        Gizmos.DrawWireSphere(origin, m_SphereRadius);
-
-        // Draw line to show cast direction
-        Gizmos.DrawLine(origin, end);
-
-        // If grounded, show where we hit
-        if (m_IsGrounded && m_LastGroundHit.collider != null)
+        // Initialize pattern if needed
+        if (m_RaycastOffsets[0] == Vector3.zero && m_RaycastOffsets[1] == Vector3.zero)
         {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(m_LastGroundHit.point, 0.1f);
+            InitializeRaycastPattern();
         }
+
+        // Draw rays
+        for (int i = 0; i < m_RaycastOffsets.Length; i++)
+        {
+            Vector3 rayOrigin = transform.position + transform.TransformDirection(m_RaycastOffsets[i]);
+            rayOrigin.y += m_GroundCheckStartHeight;
+
+            // Color based on hit status
+            if (Application.isPlaying && m_HitResults[i].collider != null)
+            {
+                // Green for grounded, yellow for detected but not grounded
+                float distance = m_HitResults[i].distance - m_GroundCheckStartHeight;
+                Gizmos.color = distance <= 0.1f ? Color.green : Color.yellow;
+                Gizmos.DrawLine(rayOrigin, m_HitResults[i].point);
+
+                // Draw hit point sphere
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawWireSphere(m_HitResults[i].point, 0.1f);
+            }
+            else
+            {
+                // Red ray for no hit
+                Gizmos.color = Color.red;
+                Gizmos.DrawLine(rayOrigin, rayOrigin + Vector3.down * (m_GroundCheckDistance + m_GroundCheckStartHeight));
+            }
+        }
+
+        // Draw detection radius
+        Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
+        Gizmos.DrawWireSphere(transform.position, m_DetectionRadius);
     }
 }
