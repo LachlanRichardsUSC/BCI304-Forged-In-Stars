@@ -1,0 +1,199 @@
+﻿#pragma kernel GenerateFoliagePoints
+
+// Structures
+struct FoliagePoint
+{
+    float3 position;
+    float3 normal;
+    float scale;
+    float rotation;
+};
+
+// Input
+Texture3D<float> DensityTexture;
+SamplerState samplerDensityTexture;
+
+// Output
+AppendStructuredBuffer<FoliagePoint> FoliagePoints;
+
+// Parameters
+uint3 gridDimensions;
+float3 boundsMin;
+float3 boundsSize;
+float placementDensity;
+float minSlopeAngle;
+float maxSlopeAngle;
+float minHeight;
+float maxHeight;
+uint seed;
+float isoLevel;
+uint textureSize;
+float jitterAmount;
+uint maxPoints; // Add this parameter
+
+// Shared memory for counting points (optional optimization)
+groupshared uint groupPointCount;
+
+// Random number generation using PCG hash
+uint pcg_hash(uint input)
+{
+    uint state = input * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+float random(uint3 p, uint offset)
+{
+    return pcg_hash(p.x + p.y * 1973u + p.z * 9277u + seed + offset) / float(0xFFFFFFFF);
+}
+
+// Generate 2D random vector for better distribution
+float2 random2(uint3 p, uint offset)
+{
+    return float2(
+        random(p, offset),
+        random(p, offset + 1)
+    );
+}
+
+// Sample density at world position
+float sampleDensityWorld(float3 worldPos)
+{
+    float3 normalizedPos = (worldPos - boundsMin) / boundsSize;
+    float3 texCoord = normalizedPos * (textureSize - 1);
+    return DensityTexture.SampleLevel(samplerDensityTexture, texCoord / textureSize, 0).r;
+}
+
+// Calculate surface normal using density gradient
+float3 calculateNormal(float3 worldPos)
+{
+    float epsilon = boundsSize.x / textureSize * 2.0; // Slightly larger epsilon for stability
+    
+    float dx = sampleDensityWorld(worldPos + float3(epsilon, 0, 0)) -
+               sampleDensityWorld(worldPos - float3(epsilon, 0, 0));
+    float dy = sampleDensityWorld(worldPos + float3(0, epsilon, 0)) -
+               sampleDensityWorld(worldPos - float3(0, epsilon, 0));
+    float dz = sampleDensityWorld(worldPos + float3(0, 0, epsilon)) -
+               sampleDensityWorld(worldPos - float3(0, 0, epsilon));
+    
+    return normalize(float3(-dx, -dy, -dz));
+}
+
+// Find the surface position using ray marching
+bool findSurface(float3 startPos, float3 direction, out float3 surfacePos, out float3 surfaceNormal)
+{
+    float stepSize = boundsSize.y / 128.0; // Finer steps for better accuracy
+    float3 currentPos = startPos;
+    float prevDensity = sampleDensityWorld(currentPos);
+    
+    // Ray march downward
+    for (uint i = 0; i < 128; i++)
+    {
+        currentPos += direction * stepSize;
+        float density = sampleDensityWorld(currentPos);
+        
+        // Check if we crossed the surface
+        if (prevDensity < isoLevel && density >= isoLevel)
+        {
+            // Binary search for more accurate surface position
+            float3 start = currentPos - direction * stepSize;
+            float3 end = currentPos;
+            
+            for (uint j = 0; j < 8; j++) // More iterations for better accuracy
+            {
+                float3 mid = (start + end) * 0.5;
+                float midDensity = sampleDensityWorld(mid);
+                
+                if (midDensity < isoLevel)
+                    start = mid;
+                else
+                    end = mid;
+            }
+            
+            surfacePos = (start + end) * 0.5;
+            surfaceNormal = calculateNormal(surfacePos);
+            return true;
+        }
+        
+        prevDensity = density;
+        
+        // Early exit if we're too far below
+        if (currentPos.y < boundsMin.y - boundsSize.y * 0.1)
+            break;
+    }
+    
+    return false;
+}
+
+[numthreads(8, 1, 8)]
+void GenerateFoliagePoints(uint3 id : SV_DispatchThreadID)
+{
+    // Initialize group shared memory
+    if (all(id == 0))
+    {
+        groupPointCount = 0;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    
+    // Check bounds
+    if (any(id >= gridDimensions))
+        return;
+    
+    // Calculate cell size based on grid resolution
+    float cellSizeX = boundsSize.x / (gridDimensions.x - 1);
+    float cellSizeZ = boundsSize.z / (gridDimensions.z - 1);
+    
+    // Multi-sample per cell for better distribution at high resolutions
+    uint samplesPerCell = max(1, uint(max(cellSizeX, cellSizeZ) / 5.0)); // Adjust based on cell size
+    
+    for (uint sampleIdx = 0; sampleIdx < samplesPerCell; sampleIdx++)
+    {
+        // Generate random position within cell using stratified sampling
+        float2 stratifiedOffset = random2(id, sampleIdx * 10);
+        
+        // Scale jitter based on cell size for consistent visual density
+        float2 cellPos = float2(id.x, id.z) + stratifiedOffset;
+        float2 normalizedPos = cellPos / float2(gridDimensions.x - 1, gridDimensions.z - 1);
+        
+        // Convert to world position
+        float3 worldPos;
+        worldPos.x = boundsMin.x + normalizedPos.x * boundsSize.x;
+        worldPos.z = boundsMin.z + normalizedPos.y * boundsSize.z;
+        worldPos.y = boundsMin.y + boundsSize.y; // Start from top
+        
+        // Density check - adjust for samples per cell
+        float probability = random(id, sampleIdx * 10 + 5);
+        if (probability > (placementDensity / samplesPerCell))
+            continue;
+        
+        // Find surface
+        float3 surfacePos, surfaceNormal;
+        if (!findSurface(worldPos, float3(0, -1, 0), surfacePos, surfaceNormal))
+            continue;
+        
+        // Check height constraints
+        if (surfacePos.y < minHeight || surfacePos.y > maxHeight)
+            continue;
+        
+        // Check slope constraints
+        float slopeAngle = degrees(acos(saturate(dot(surfaceNormal, float3(0, 1, 0)))));
+        if (slopeAngle < minSlopeAngle || slopeAngle > maxSlopeAngle)
+            continue;
+        
+        // Additional check to prevent clustering - minimum distance check
+        // This is a simplified version - for production, use a spatial hash
+        float minDist = min(cellSizeX, cellSizeZ) * 0.5;
+        float distCheck = random(id, sampleIdx * 10 + 6);
+        if (distCheck > 0.8) // Random culling to prevent over-density
+            continue;
+        
+        // Create foliage point
+        FoliagePoint foliagePoint;
+        foliagePoint.position = surfacePos;
+        foliagePoint.normal = surfaceNormal;
+        foliagePoint.scale = 0.8 + random(id, sampleIdx * 10 + 7) * 0.4;
+        foliagePoint.rotation = random(id, sampleIdx * 10 + 8) * 3.14159265 * 2.0;
+        
+        FoliagePoints.Append(foliagePoint);
+    }
+}

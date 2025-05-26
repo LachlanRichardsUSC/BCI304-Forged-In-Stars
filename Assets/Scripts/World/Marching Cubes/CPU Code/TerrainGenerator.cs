@@ -95,23 +95,6 @@ public class TerrainGenerator : MonoBehaviour
     [Tooltip("Smoothing radius (1-2 for light smoothing, 3-5 for heavy)")]
     [Range(1, 5)] private int blurRadius = 1;
 
-    [Header("World Edges")]
-    [SerializeField]
-    [Tooltip("Fade terrain to nothing at world borders")]
-    private bool enableBorderFalloff = true;
-
-    [SerializeField]
-    [Tooltip("How far from edge the fadeout begins (0 = at edge, 0.5 = halfway to center)")]
-    [Range(0.0f, 0.5f)] private float borderFalloffStart = 0.3f;
-
-    [SerializeField]
-    [Tooltip("How quickly terrain fades at borders (1 = gradual, 5 = sharp)")]
-    [Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
-
-    [SerializeField]
-    [Tooltip("Thickness of solid ground layer at world bottom")]
-    [Range(0, 5)] private int borderWidth = 1;
-
     [Header("Generation")]
     [SerializeField]
     [Tooltip("Seed for random terrain generation")]
@@ -174,9 +157,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 20f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
                 break;
 
             case TerrainPreset.Mountains:
@@ -193,9 +173,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 30f;
                 useBlur = true;
                 blurRadius = 3;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
                 break;
 
             case TerrainPreset.Desert:
@@ -212,7 +189,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
                 break;
 
             case TerrainPreset.Canyons:
@@ -229,9 +205,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 3;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.2f;
-                borderFalloffSteepness = 3.0f;
                 break;
 
             case TerrainPreset.Islands:
@@ -248,9 +221,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 20f;
                 useBlur = true;
                 blurRadius = 1;
-                enableBorderFalloff = true;
-                borderFalloffStart = 0.15f;
-                borderFalloffSteepness = 4.0f;
                 break;
 
             case TerrainPreset.Alien:
@@ -267,9 +237,6 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
                 break;
         }
 
@@ -577,7 +544,6 @@ public class TerrainGenerator : MonoBehaviour
         // Pass parameters to compute shader
         densityCompute.SetInt("textureSize", _textureSize);
         densityCompute.SetFloat("boundsSize", terrainScale);
-        densityCompute.SetInt("borderWidth", borderWidth);
         densityCompute.SetFloat("terrainSeed", terrainSeed);
 
         // New terrain shape parameters
@@ -594,11 +560,6 @@ public class TerrainGenerator : MonoBehaviour
         densityCompute.SetFloat("hardFloorBlend", hardFloorBlend);
         densityCompute.SetFloat("cavesStrength", caveStrength);
         densityCompute.SetFloat("ridgeStrength", ridgeStrength);
-
-        // Border falloff parameters
-        densityCompute.SetFloat("borderFalloffStart", borderFalloffStart);
-        densityCompute.SetFloat("borderFalloffSteepness", borderFalloffSteepness);
-        densityCompute.SetInt("enableBorderFalloff", enableBorderFalloff ? 1 : 0);
 
         ComputeHelper.Dispatch(densityCompute, _textureSize, _textureSize, _textureSize);
 
@@ -683,6 +644,14 @@ public class TerrainGenerator : MonoBehaviour
         ReleaseResources();
         Initialize();
         GenerateTerrain();
+
+        // Notify foliage placer if it exists
+        GPUFoliagePlacer foliagePlacer = Object.FindFirstObjectByType<GPUFoliagePlacer>();
+        if (foliagePlacer != null)
+        {
+            foliagePlacer.OnTerrainRegenerated();
+        }
+
     }
 
     public void SetSeed(int newSeed)

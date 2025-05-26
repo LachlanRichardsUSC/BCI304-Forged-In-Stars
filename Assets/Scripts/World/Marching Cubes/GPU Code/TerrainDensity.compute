@@ -4,7 +4,6 @@
 // Texture for storing density values
 RWTexture3D<float> DensityTexture;
 int textureSize;
-int borderWidth;
 
 // Generation parameters
 float boundsSize;
@@ -24,11 +23,6 @@ float hardFloorHeight; // Y level for hard floor (-inf to disable)
 float hardFloorBlend; // Blend distance for hard floor
 float cavesStrength; // 3D cave features (0-1)
 float ridgeStrength; // Ridge/mountain sharpness (0-1)
-
-// Border parameters
-float borderFalloffStart;
-float borderFalloffSteepness;
-int enableBorderFalloff;
 
 // Advanced 3D noise function that creates better terrain
 // Uses proper octave accumulation as described in GPU Gems
@@ -114,23 +108,6 @@ float calculateDensity(int3 cell)
         density += floorInfluence * floorInfluence * terrainAmplitude * 2.0;
     }
     
-    // Apply border falloff if enabled
-    if (enableBorderFalloff != 0)
-    {
-        float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
-        float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0;
-        float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
-        
-        float falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
-        falloffFactor = pow(max(0.0, falloffFactor), borderFalloffSteepness);
-        
-        // Reduce density at borders to create falloff
-        density *= falloffFactor;
-        
-        // Also reduce features at borders
-        density -= (1.0 - falloffFactor) * terrainAmplitude;
-    }
-    
     return density;
 }
 
@@ -143,23 +120,8 @@ void CSMain(int3 id : SV_DispatchThreadID)
         return;
     }
 
-    float density;
-
-    // Create solid bottom layer for stability
-    if (id.y <= borderWidth)
-    {
-        density = 5.0;
-    }
-    // Create empty top layer (air)
-    else if (id.y >= textureSize - borderWidth)
-    {
-        density = -5.0;
-    }
-    else
-    {
-        // Normal terrain generation
-        density = calculateDensity(id);
-    }
+    // Calculate density for this position
+    float density = calculateDensity(id);
 
     // Store calculated density
     DensityTexture[id] = density;
