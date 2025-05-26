@@ -95,22 +95,6 @@ public class TerrainGenerator : MonoBehaviour
     [Tooltip("Smoothing radius (1-2 for light smoothing, 3-5 for heavy)")]
     [Range(1, 5)] private int blurRadius = 1;
 
-    [Header("World Edges")]
-    [SerializeField]
-    [Tooltip("Fade terrain to nothing at world borders")]
-    private bool enableBorderFalloff = true;
-
-    [SerializeField]
-    [Tooltip("How far from edge the fadeout begins (0 = at edge, 0.5 = halfway to center)")]
-    [Range(0.0f, 0.5f)] private float borderFalloffStart = 0.3f;
-
-    [SerializeField]
-    [Tooltip("How quickly terrain fades at borders (1 = gradual, 5 = sharp)")]
-    [Range(1.0f, 5.0f)] private float borderFalloffSteepness = 2.0f;
-
-    [SerializeField]
-    [Tooltip("Thickness of solid ground layer at world bottom")]
-    [Range(0, 5)] private int borderWidth = 1;
 
     [Header("Generation")]
     [SerializeField]
@@ -174,28 +158,24 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 20f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
+             
                 break;
 
             case TerrainPreset.Mountains:
                 baseHeight = -32f;
-                featureScale = 96f;
-                featureAmplitude = 72f;
-                noiseOctaves = 4;
-                noisePersistence = 0.348f;
+                featureScale = 384f;
+                featureAmplitude = 144f;
+                noiseOctaves = 6;
+                noisePersistence = 0.6f;
                 noiseLacunarity = 1.755f;
                 domainWarpStrength = 0.1f;
                 caveStrength = 0.1f;
-                ridgeStrength = 0.45f;
-                hardFloorHeight = -60f;
-                hardFloorBlend = 30f;
+                ridgeStrength = 0.75f;
+                hardFloorHeight = 0f;
+                hardFloorBlend = 40f;
                 useBlur = true;
                 blurRadius = 3;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
+               
                 break;
 
             case TerrainPreset.Desert:
@@ -212,7 +192,7 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
+               
                 break;
 
             case TerrainPreset.Canyons:
@@ -229,9 +209,7 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 3;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.2f;
-                borderFalloffSteepness = 3.0f;
+               
                 break;
 
             case TerrainPreset.Islands:
@@ -248,9 +226,7 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 20f;
                 useBlur = true;
                 blurRadius = 1;
-                enableBorderFalloff = true;
-                borderFalloffStart = 0.15f;
-                borderFalloffSteepness = 4.0f;
+               
                 break;
 
             case TerrainPreset.Alien:
@@ -267,9 +243,7 @@ public class TerrainGenerator : MonoBehaviour
                 hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 2;
-                enableBorderFalloff = false;
-                borderFalloffStart = 0.3f;
-                borderFalloffSteepness = 2.0f;
+               
                 break;
         }
 
@@ -577,7 +551,7 @@ public class TerrainGenerator : MonoBehaviour
         // Pass parameters to compute shader
         densityCompute.SetInt("textureSize", _textureSize);
         densityCompute.SetFloat("boundsSize", terrainScale);
-        densityCompute.SetInt("borderWidth", borderWidth);
+
         densityCompute.SetFloat("terrainSeed", terrainSeed);
 
         // New terrain shape parameters
@@ -595,11 +569,7 @@ public class TerrainGenerator : MonoBehaviour
         densityCompute.SetFloat("cavesStrength", caveStrength);
         densityCompute.SetFloat("ridgeStrength", ridgeStrength);
 
-        // Border falloff parameters
-        densityCompute.SetFloat("borderFalloffStart", borderFalloffStart);
-        densityCompute.SetFloat("borderFalloffSteepness", borderFalloffSteepness);
-        densityCompute.SetInt("enableBorderFalloff", enableBorderFalloff ? 1 : 0);
-
+       
         ComputeHelper.Dispatch(densityCompute, _textureSize, _textureSize, _textureSize);
 
         if (useBlur)

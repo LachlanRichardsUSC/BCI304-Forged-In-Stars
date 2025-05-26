@@ -47,93 +47,34 @@ int indexFromCoord(int3 coord)
 // Sample density value safely
 float sampleDensity(int3 coord)
 {
-    coord = max(0, min(coord, textureSize));
+    coord = max(0, min(coord, textureSize - 1));
     return DensityTexture[coord];
 }
 
 // Calculate normal using central differences
 float3 calculateNormal(int3 coord)
 {
-    float3 offsetX = float3(1, 0, 0);
-    float3 offsetY = float3(0, 1, 0);
-    float3 offsetZ = float3(0, 0, 1);
-
-    float dx = sampleDensity(coord + offsetX) - sampleDensity(coord - offsetX);
-    float dy = sampleDensity(coord + offsetY) - sampleDensity(coord - offsetY);
-    float dz = sampleDensity(coord + offsetZ) - sampleDensity(coord - offsetZ);
-    
-    // For heightmap terrain, ensure normals have a proper upward component
-    // Reduce the horizontal components and strengthen the vertical
-    dx *= 0.8;
-    dz *= 0.8;
-    dy = abs(dy) * 1.5; // Strengthen y component and ensure it's positive
-    
-    return normalize(float3(dx, dy, dz));
+    float dx = sampleDensity(coord + int3(1, 0, 0)) - sampleDensity(coord - int3(1, 0, 0));
+    float dy = sampleDensity(coord + int3(0, 1, 0)) - sampleDensity(coord - int3(0, 1, 0));
+    float dz = sampleDensity(coord + int3(0, 0, 1)) - sampleDensity(coord - int3(0, 0, 1));
+    return normalize(-float3(dx, dy, dz));
 }
 
 // Create a vertex along an edge
-Vertex createVertex(int3 coordA, int3 coordB)
+Vertex createVertex(int3 coordA, int3 coordB, float densityA, float densityB)
 {
     // Get positions and density values
     float3 posA = coordToWorld(coordA);
     float3 posB = coordToWorld(coordB);
-    float densityA = sampleDensity(coordA);
-    float densityB = sampleDensity(coordB);
-
+    
     // Interpolate position based on density values
     float t = (isoLevel - densityA) / (densityB - densityA);
+    t = saturate(t); // Add this to prevent extrapolation
     float3 position = posA + t * (posB - posA);
 
-    // ADAPTIVE SAMPLING FOR RIDGES
-    // Calculate exact interpolated coordinate for more accurate normal sampling
-    int3 centerCoord = int3(lerp(float3(coordA), float3(coordB), t));
-    
-    // Check gradient magnitude to detect sharp features
-    float gradMagnitude = 0;
-    {
-        // Quick gradient check
-        float dx = sampleDensity(centerCoord + int3(1, 0, 0)) - sampleDensity(centerCoord - int3(1, 0, 0));
-        float dy = sampleDensity(centerCoord + int3(0, 1, 0)) - sampleDensity(centerCoord - int3(0, 1, 0));
-        float dz = sampleDensity(centerCoord + int3(0, 0, 1)) - sampleDensity(centerCoord - int3(0, 0, 1));
-        gradMagnitude = length(float3(dx, dy, dz));
-    }
-    
-    // Adaptive sampling - use closer samples for sharp features, wider for smooth areas
-    int dist = (gradMagnitude > 0.4) ? 1 : 2;
-    
-    // Multiple sample points for smoother transitions on ridges
-    float3 normal = float3(0, 0, 0);
-    
-    // Primary sample at center point
-    {
-        float dx = sampleDensity(centerCoord + int3(dist, 0, 0)) - sampleDensity(centerCoord - int3(dist, 0, 0));
-        float dy = sampleDensity(centerCoord + int3(0, dist, 0)) - sampleDensity(centerCoord - int3(0, dist, 0));
-        float dz = sampleDensity(centerCoord + int3(0, 0, dist)) - sampleDensity(centerCoord - int3(0, 0, dist));
-        normal += float3(dx, dy, dz);
-    }
-    
-    // For ridge areas, add additional samples with smaller kernel
-    if (gradMagnitude > 0.3)
-    {
-        // Offset slightly in direction of vertex A
-        int3 offsetA = centerCoord + int3(sign(coordA.x - coordB.x), sign(coordA.y - coordB.y), sign(coordA.z - coordB.z));
-        float dxA = sampleDensity(offsetA + int3(1, 0, 0)) - sampleDensity(offsetA - int3(1, 0, 0));
-        float dyA = sampleDensity(offsetA + int3(0, 1, 0)) - sampleDensity(offsetA - int3(0, 1, 0));
-        float dzA = sampleDensity(offsetA + int3(0, 0, 1)) - sampleDensity(offsetA - int3(0, 0, 1));
-        normal += float3(dxA, dyA, dzA) * 0.5; // Half weight for offset sample
-    }
-    
-    // CRITICAL FIX: Invert normal direction to point outward from the terrain
-    normal = -normal;
-    
-    if (length(normal) < 0.001)
-    {
-        normal = float3(0, 1, 0);
-    }
-    else
-    {
-        normal = normalize(normal);
-    }
+    // Calculate normal at the interpolated coordinate
+    int3 nearestCoord = int3(round(lerp(float3(coordA), float3(coordB), t)));
+    float3 normal = calculateNormal(nearestCoord); // USE YOUR SIMPLE FUNCTION!
 
     // Create vertex ID for welding
     int indexA = indexFromCoord(coordA);
@@ -160,7 +101,7 @@ void ProcessCube(int3 id : SV_DispatchThreadID)
     // Get coordinates in the density field
     int3 coord = id + int3(chunkCoord);
 
-    // Get the eight corners of the cube
+    // Get the eight corners of the cube FIRST
     int3 cornerCoords[8];
     cornerCoords[0] = coord + int3(0, 0, 0);
     cornerCoords[1] = coord + int3(1, 0, 0);
@@ -171,11 +112,18 @@ void ProcessCube(int3 id : SV_DispatchThreadID)
     cornerCoords[6] = coord + int3(1, 1, 1);
     cornerCoords[7] = coord + int3(0, 1, 1);
 
-    // Calculate cube configuration index
+    // THEN cache the densities
+    float cornerDensities[8];
+    for (int i = 0; i < 8; i++)
+    {
+        cornerDensities[i] = sampleDensity(cornerCoords[i]);
+    }
+
+    // Calculate cube configuration index using cached values
     int cubeConfiguration = 0;
     for (int cornerIndex = 0; cornerIndex < 8; cornerIndex++)
     {
-        if (sampleDensity(cornerCoords[cornerIndex]) < isoLevel)
+        if (cornerDensities[cornerIndex] < isoLevel)
         {
             cubeConfiguration |= (1 << cornerIndex);
         }
@@ -206,9 +154,9 @@ void ProcessCube(int3 id : SV_DispatchThreadID)
         int c1 = cornerIndexBFromEdge[edgeIndexC];
 
         // Create the three vertices
-        Vertex vertexA = createVertex(cornerCoords[a0], cornerCoords[a1]);
-        Vertex vertexB = createVertex(cornerCoords[b0], cornerCoords[b1]);
-        Vertex vertexC = createVertex(cornerCoords[c0], cornerCoords[c1]);
+        Vertex vertexA = createVertex(cornerCoords[a0], cornerCoords[a1], cornerDensities[a0], cornerDensities[a1]);
+        Vertex vertexB = createVertex(cornerCoords[b0], cornerCoords[b1], cornerDensities[b0], cornerDensities[b1]);
+        Vertex vertexC = createVertex(cornerCoords[c0], cornerCoords[c1], cornerDensities[c0], cornerDensities[c1]);
 
         // Create and append triangle
         Triangle tri;
