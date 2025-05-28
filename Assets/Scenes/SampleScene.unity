@@ -673,8 +673,9 @@ GameObject:
   - component: {fileID: 489083705}
   - component: {fileID: 489083704}
   - component: {fileID: 489083703}
+  - component: {fileID: 489083707}
   m_Layer: 0
-  m_Name: Cube (6)
+  m_Name: Respawn Point
   m_TagString: Checkpoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -769,6 +770,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &489083707
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 489083702}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29deaf204c559814d8e8ecf880b1cca2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &548992932
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -825,6 +838,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 8
       objectReference: {fileID: 0}
+    - target: {fileID: 8947602139514682757, guid: e23e42a1a60a28c49bcdb2a0bfc25740, type: 3}
+      propertyPath: m_TagString
+      value: Enemy
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 3801822875217722059, guid: e23e42a1a60a28c49bcdb2a0bfc25740, type: 3}
     - {fileID: 7360316538065694408, guid: e23e42a1a60a28c49bcdb2a0bfc25740, type: 3}
@@ -862,7 +879,7 @@ GameObject:
   - component: {fileID: 576692448}
   - component: {fileID: 576692447}
   m_Layer: 0
-  m_Name: TrapPlatform
+  m_Name: Trapplatform
   m_TagString: Trap
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1246,6 +1263,18 @@ MonoBehaviour:
   comboText: {fileID: 1122256002}
   resetTime: 2
 --- !u!114 &687819270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 142649119}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29deaf204c559814d8e8ecf880b1cca2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &687819278
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1673,6 +1702,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 8
       objectReference: {fileID: 0}
+    - target: {fileID: 4211229547400340416, guid: 7c2b4c58c39a14f458d798f7d4d51cf5, type: 3}
+      propertyPath: m_TagString
+      value: Enemy
+      objectReference: {fileID: 0}
     - target: {fileID: 8279198928505407429, guid: 7c2b4c58c39a14f458d798f7d4d51cf5, type: 3}
       propertyPath: m_Height
       value: 2.11
@@ -1935,6 +1968,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 5286194420124241759, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 687819270}
+    - targetCorrespondingSourceObject: {fileID: 5286194420124241759, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 687819278}
   m_SourcePrefab: {fileID: 100100000, guid: 0ed3734a2c7506048a5cd6014f933e9c, type: 3}
 --- !u!1001 &1531651536
 PrefabInstance:
