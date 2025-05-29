@@ -59,16 +59,21 @@ public class EnemyAI : MonoBehaviour
     // Called when the enemy collides with a trigger (like the player)
     private void OnTriggerStay(Collider other) // called every frame as long as another collider stays inside the trigger.
     {
-        // If it collides with player, deal damage
         if (other.CompareTag("Player"))
         {
             if (Time.time >= lastAttackTime + attackCooldown)
             {
-                Debug.Log("Player hit!");
-
-                other.GetComponent<PlayerHealth>().TakeDamage(damageAmount);
-
-                lastAttackTime = Time.time; // Update the last attack time
+                PlayerHealth playerHealth = other.GetComponent<PlayerHealth>(); // Try to get the PlayerHealth component from the object we're colliding with
+                if (playerHealth != null) // Make sure the playerHealth component exists before calling TakeDamage
+                {
+                    Debug.Log("Player hit!");
+                    playerHealth.TakeDamage(damageAmount);
+                    lastAttackTime = Time.time;
+                }
+                else
+                {
+                    Debug.LogWarning("PlayerHealth component not found on Player GameObject!");
+                }
             }
         }
     }
