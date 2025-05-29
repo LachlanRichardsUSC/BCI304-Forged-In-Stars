@@ -1,26 +1,34 @@
-using UnityEngine;
+﻿using UnityEngine;
 
+/// <summary>
+/// Dash component that is attached to the Player object.
+/// Configurable parameters are stored in MovementSettings.cs
+/// </summary>
+[RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(GroundDetector))]
+[RequireComponent(typeof(ResourceManager))]
+[RequireComponent(typeof(MovementSettings))]
 public class PlayerDash : MonoBehaviour
 {
-    [Header("Dash Settings")]
-    public int maxDashes = 4;                // Max dashes before cooldown
-    public float dashCooldown = 5.5f;        // Time before all dashes reset
-
+    // Runtime state
     private int currentDashes;
     private float dashResetTimer;
     private bool dashesInCooldown = false;
 
-    private MovementSettings m_Settings;
+    // Component references
     private InputSystem_Actions m_Actions;
     private CharacterController m_Controller;
     private GroundDetector m_GroundDetector;
     private ResourceManager m_ResourceManager;
-    public Transform m_CameraTransform;
+    private MovementSettings m_Settings;
+    private Transform m_CameraTransform;
 
+    // Dash state
     private bool m_IsDashing;
     private float m_DashTimeRemaining;
     private Vector3 m_DashDirection;
 
+    // Events
     public event System.Action OnDashInitiated;
 
     private void Awake()
@@ -35,17 +43,42 @@ public class PlayerDash : MonoBehaviour
         m_ResourceManager = GetComponent<ResourceManager>();
         m_Settings = GetComponent<MovementSettings>();
         m_Actions = new InputSystem_Actions();
+
+        if (!ValidateComponents()) enabled = false;
     }
 
-    void Start()
+    private bool ValidateComponents()
     {
-        currentDashes = maxDashes;
+        if (m_Controller == null || m_GroundDetector == null ||
+            m_ResourceManager == null || m_Settings == null)
+        {
+            Debug.LogError($"[{GetType().Name}] Required components missing!");
+            return false;
+        }
+        return true;
+    }
+
+    private void Start()
+    {
+        currentDashes = m_Settings.Dash.maxDashes;
         dashResetTimer = 0f;
+
+        m_CameraTransform = Camera.main?.transform;
+        if (m_CameraTransform == null)
+        {
+            Debug.LogError($"[{GetType().Name}] Main camera not found!");
+            enabled = false;
+        }
     }
 
     private void OnEnable()
     {
         m_Actions?.Player.Enable();
+    }
+
+    private void OnDisable()
+    {
+        m_Actions?.Player.Disable();
     }
 
     private void Update()
@@ -54,19 +87,7 @@ public class PlayerDash : MonoBehaviour
 
         m_GroundDetector.CheckGround();
         HandleDash();
-
-        // Handle dash cooldown
-        if (dashesInCooldown)
-        {
-            dashResetTimer -= Time.deltaTime;
-
-            if (dashResetTimer <= 0f)
-            {
-                currentDashes = maxDashes;
-                dashesInCooldown = false;
-                Debug.Log("Dashes reset! Available dashes: " + currentDashes);
-            }
-        }
+        HandleDashCooldown();
     }
 
     private void HandleDash()
@@ -83,12 +104,27 @@ public class PlayerDash : MonoBehaviour
             return;
         }
 
-        // Check if we can dash - requires: player input, stamina available, and dashes available
+        // Check conditions in order: input > dashes available > stamina
+        // This prevents stamina consumption when dashes aren't available
         if (m_Actions.Player.Dash.WasPerformedThisFrame() &&
-            m_ResourceManager.TryUseStamina(m_Settings.Dash.dashStaminaCost) &&
-            currentDashes > 0)
+            currentDashes > 0 &&
+            m_ResourceManager.TryUseStamina(m_Settings.Dash.dashStaminaCost))
         {
             InitiateDash();
+        }
+    }
+
+    private void HandleDashCooldown()
+    {
+        if (dashesInCooldown)
+        {
+            dashResetTimer -= Time.deltaTime;
+            if (dashResetTimer <= 0f)
+            {
+                currentDashes = m_Settings.Dash.maxDashes;
+                dashesInCooldown = false;
+                Debug.Log("Dashes reset! Available dashes: " + currentDashes);
+            }
         }
     }
 
@@ -105,7 +141,7 @@ public class PlayerDash : MonoBehaviour
         if (currentDashes <= 0)
         {
             dashesInCooldown = true;
-            dashResetTimer = dashCooldown;
+            dashResetTimer = m_Settings.Dash.dashCooldown;
         }
 
         // Get current movement input
@@ -128,4 +164,17 @@ public class PlayerDash : MonoBehaviour
         m_DashDirection.Normalize();
         OnDashInitiated?.Invoke();
     }
+
+    private void OnDestroy()
+    {
+        m_Actions?.Dispose();
+    }
+
+    // Public properties for external access
+    public bool IsDashing => m_IsDashing;
+    public int CurrentDashes => currentDashes;
+    public int MaxDashes => m_Settings.Dash.maxDashes;
+    public bool InCooldown => dashesInCooldown;
+    public float CooldownTimeRemaining => dashResetTimer;
+    public float TotalCooldownTime => m_Settings.Dash.dashCooldown;
 }

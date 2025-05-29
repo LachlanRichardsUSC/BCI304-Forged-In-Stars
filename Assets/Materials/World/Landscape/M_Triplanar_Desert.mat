@@ -62,14 +62,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BlendSharpness: 1
+    - _BlendSharpness: 16
     - _HeightEnd: 0.53
     - _HeightStart: 0
     - _QueueControl: 0
     - _QueueOffset: 0
     - _SideMetallic: 0
     - _SideSmoothness: 0
-    - _SideTiling: 0.5
+    - _SideTiling: 0.1
     - _SlopeEnd: 1
     - _SlopeStart: 0.5
     - _Smoothness: 0.2
@@ -78,7 +78,7 @@ Material:
     - _SteepTiling: 0.1
     - _TopMetallic: 0
     - _TopSmoothness: 0
-    - _TopTiling: 0.1
+    - _TopTiling: 0.05
     m_Colors:
     - _SideColour: {r: 1, g: 0.827451, b: 0.627451, a: 0}
     - _SteepColour: {r: 1, g: 1, b: 1, a: 0}

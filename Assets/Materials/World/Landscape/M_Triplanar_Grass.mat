@@ -25,11 +25,11 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _SideAlbedo:
-        m_Texture: {fileID: 2800000, guid: f132c2abadecaef40bc3fe510dfaa71a, type: 3}
+        m_Texture: {fileID: 2800000, guid: 75e4275b94a202e47a622b32c138aed8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SideNormal:
-        m_Texture: {fileID: 2800000, guid: 6e2bb43a15d4c984c911d85eb06c920e, type: 3}
+        m_Texture: {fileID: 2800000, guid: 9d285138549ec4043ba65c3e911d11d7, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SteepAlbedo:
@@ -62,14 +62,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BlendSharpness: 1
-    - _HeightEnd: 0.53
-    - _HeightStart: 0
+    - _BlendSharpness: 10
+    - _HeightEnd: 0.5
+    - _HeightStart: 0.14
     - _QueueControl: 0
     - _QueueOffset: 0
     - _SideMetallic: 0
     - _SideSmoothness: 0
-    - _SideTiling: 0.25
+    - _SideTiling: 0.075
     - _SlopeEnd: 1
     - _SlopeStart: 0.5
     - _Smoothness: 0.2
@@ -77,12 +77,12 @@ Material:
     - _SteepSmoothness: 0
     - _SteepTiling: 0.1
     - _TopMetallic: 0
-    - _TopSmoothness: 6.5
+    - _TopSmoothness: 0
     - _TopTiling: 0.25
     m_Colors:
-    - _SideColour: {r: 0.6037736, g: 0.56230515, b: 0.51548594, a: 0}
+    - _SideColour: {r: 0.7830189, g: 0.70550233, b: 0.5577163, a: 0}
     - _SteepColour: {r: 0.8867924, g: 0.74042004, b: 0.6901922, a: 0}
-    - _TopColour: {r: 1, g: 1, b: 1, a: 0}
+    - _TopColour: {r: 0.42203695, g: 0.7264151, b: 0.34607512, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &7478027994724333232

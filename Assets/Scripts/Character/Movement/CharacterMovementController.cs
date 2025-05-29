@@ -2,8 +2,9 @@
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Handles all character movement including basic locomotion, jumping, jump jets, and dashing.
+/// Handles all character movement including basic locomotion, jumping, and jump jets.
 /// Requires MovementSettings component for configuration.
+/// Will be refactored later to adhere to the Component Pattern.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(GroundDetector))]
@@ -18,6 +19,7 @@ public class CharacterMovementController : MonoBehaviour
     private MovementSettings m_Settings;
     private Transform m_CameraTransform;
     private InputSystem_Actions m_Actions;
+    private PlayerDash m_PlayerDash;
 
     // Movement state
     private Vector3 m_Movement;
@@ -26,21 +28,12 @@ public class CharacterMovementController : MonoBehaviour
     private float m_FallTime;
     private float m_LastJumpTime;
 
-    // Dash state
-    private bool m_IsDashing;
-    private float m_DashTimeRemaining;
-    private float m_DashCooldownRemaining;
-    private Vector3 m_DashDirection;
-
     // Jump jet state
     private bool m_IsUsingJumpJets;
-   // private float m_JumpJetDuration;
     private float m_JumpJetDelayTimer = 0f;
-   // private const float k_JumpJetDelay = 0.25f;
 
     // Events
     public event System.Action OnJumpInitiated;
-    public event System.Action OnDashInitiated;
     public event System.Action<float> OnMoveSpeedChanged;
     public event System.Action OnJumpJetStarted;
     public event System.Action OnJumpJetEnded;
@@ -57,6 +50,7 @@ public class CharacterMovementController : MonoBehaviour
         m_GroundDetector = GetComponent<GroundDetector>();
         m_ResourceManager = GetComponent<ResourceManager>();
         m_Settings = GetComponent<MovementSettings>();
+        m_PlayerDash = GetComponent<PlayerDash>(); // Optional dash component
         m_Actions = new InputSystem_Actions();
 
         if (!ValidateComponents()) enabled = false;
@@ -100,16 +94,13 @@ public class CharacterMovementController : MonoBehaviour
 
         m_GroundDetector.CheckGround();
 
-        if (!m_IsDashing)
-        {
-            HandleMovement();
-            HandleJumpAndGravity();
-            HandleJumpJets();
-        }
+        // Don't handle movement if dashing
+        if (m_PlayerDash != null && m_PlayerDash.IsDashing)
+            return;
 
-        HandleDash();
-        UpdateCooldowns();
-
+        HandleMovement();
+        HandleJumpAndGravity();
+        HandleJumpJets();
     }
 
     private void HandleMovement()
@@ -263,63 +254,6 @@ public class CharacterMovementController : MonoBehaviour
         {
             m_IsUsingJumpJets = false;
             OnJumpJetEnded?.Invoke();
-        }
-    }
-
-    private void HandleDash()
-    {
-        if (m_IsDashing)
-        {
-            m_Controller.Move(m_DashDirection * m_Settings.Dash.dashForce * Time.deltaTime);
-            m_DashTimeRemaining -= Time.deltaTime;
-
-            if (m_DashTimeRemaining <= 0f)
-            {
-                m_IsDashing = false;
-            }
-            return;
-        }
-
-        if (m_DashCooldownRemaining <= 0f &&
-            m_Actions.Player.Dash.WasPerformedThisFrame() &&
-            m_ResourceManager.TryUseStamina(m_Settings.Dash.dashStaminaCost))
-        {
-            InitiateDash();
-        }
-    }
-
-    private void InitiateDash()
-    {
-        m_IsDashing = true;
-        m_DashTimeRemaining = m_Settings.Dash.dashDuration;
-        m_DashCooldownRemaining = m_Settings.Dash.dashCooldown;
-
-        // Get current movement input
-        Vector2 input = m_Actions.Player.Move.ReadValue<Vector2>();
-
-        // Handle dash direction based on input
-        if (input.magnitude > 0.1f)  // If there's movement input, dash in that direction
-        {
-            float targetAngle = Mathf.Atan2(input.x, input.y) * Mathf.Rad2Deg + m_CameraTransform.eulerAngles.y;
-            m_DashDirection = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-        }
-        else  // If no movement input, use camera or character forward
-        {
-            m_DashDirection = m_Settings.Dash.useCameraForward ?
-                m_CameraTransform.forward : transform.forward;
-        }
-
-        // Keep dash movement horizontal and normalized
-        m_DashDirection.y = 0;
-        m_DashDirection.Normalize();
-        OnDashInitiated?.Invoke();
-    }
-
-    private void UpdateCooldowns()
-    {
-        if (m_DashCooldownRemaining > 0f)
-        {
-            m_DashCooldownRemaining -= Time.deltaTime;
         }
     }
 

@@ -9,8 +9,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3754999835183862847}
-  - component: {fileID: 211757374543196868}
-  - component: {fileID: 540193802751271578}
+  - component: {fileID: 4877695907401882787}
+  - component: {fileID: 8383947332193096247}
   m_Layer: 0
   m_Name: Mech
   m_TagString: Untagged
@@ -33,7 +33,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7151263434728878102}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &211757374543196868
+--- !u!23 &4877695907401882787
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -79,7 +79,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &540193802751271578
+--- !u!33 &8383947332193096247
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -102,7 +102,6 @@ GameObject:
   - component: {fileID: 140887218726377132}
   - component: {fileID: 2192070372649867056}
   - component: {fileID: 7630324220713767317}
-  - component: {fileID: 6376215488256380828}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -118,8 +117,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6389006153760245811}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0.6526883, z: 0, w: -0.7576266}
-  m_LocalPosition: {x: -96.811295, y: 63.774254, z: 222.1609}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 50, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -179,7 +178,6 @@ MonoBehaviour:
   m_GroundCheckStartHeight: 0.5
   m_GroundCheckDistance: 1.5
   m_DetectionRadius: 1
-  m_MaxSlopeAngle: 45
   m_GroundLayers:
     serializedVersion: 2
     m_Bits: 192
@@ -202,7 +200,7 @@ MonoBehaviour:
     turnSpeed: 30
     sprintStaminaCost: 10
   jumpSettings:
-    jumpForce: 7
+    jumpForce: 10
     bufferDuration: 0.2
     fallMultiplier: 1
     jumpCooldown: 0.1
@@ -211,18 +209,13 @@ MonoBehaviour:
     staminaCostPerSecond: 15
     postJumpDelay: 0.5
   dashSettings:
-    dashForce: 60
+    dashForce: 50
     dashDuration: 0.2
-    dashCooldown: 0.67
-    dashStaminaCost: 25
+    dashCooldown: 0.25
+    dashStaminaCost: 15
     useCameraForward: 1
   groundHandling:
-    groundSnapForce: 20
-    slopeSpeedMultiplier: 0.8
-    slopeSlideGravityMultiplier: 2
-    slopeSlideSpeed: 5
-    groundFollowSpeed: 20
-    maxStepHeight: 0.3
+    groundSnapForce: 10
 --- !u!114 &2192070372649867056
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -271,25 +264,6 @@ MonoBehaviour:
     BaseValue: 10
   DefaultStat:
     BaseValue: 0
---- !u!114 &6376215488256380828
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6389006153760245811}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 38a0aab9dfb15a64193411cb515a4977, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  terrainGenerator: {fileID: 0}
-  explosionRadius: 16
-  explosionStrength: 256
-  explosionKey: 101
-  explosionEffectPrefab: {fileID: 725748389856807714, guid: 4bda94453d2ca7444a0fff05b2d425f5, type: 3}
-  effectDuration: 2
-  explosionCooldown: 0.25
 --- !u!1 &9162984349042862974
 GameObject:
   m_ObjectHideFlags: 0

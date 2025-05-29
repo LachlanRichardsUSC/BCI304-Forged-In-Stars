@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 370660633665921943}
   m_Layer: 0
   m_Name: TerrainGenerator
-  m_TagString: Untagged
+  m_TagString: Ground
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -44,21 +44,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 791ca5162980d954b981d84c05256cc0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  numChunks: 10
-  numPointsPerAxis: 64
-  boundsSize: 768
-  borderWidth: 10
-  isoLevel: 0
-  useFlatShading: 0
-  noiseScale: 0.03
-  noiseHeightMultiplier: 3
-  terrainSeed: 1508
-  randomizeSeed: 0
+  preset: 6
+  applyPreset: 0
+  terrainScale: 512
+  worldSize: 8
+  chunkResolution: 64
+  baseHeight: -27.4
+  featureScale: 384
+  featureAmplitude: 104
+  noiseOctaves: 4
+  noisePersistence: 0.333
+  noiseLacunarity: 1.982
+  domainWarpStrength: 1
+  caveStrength: 0.75
+  ridgeStrength: 1
+  hardFloorHeight: 0
+  hardFloorBlend: 5
   useBlur: 1
   blurRadius: 2
+  terrainSeed: 1223
+  randomizeSeed: 0
+  isoLevel: 0
+  useFlatShading: 0
+  material: {fileID: 2100000, guid: 4e1ddbbf55c53fe4f9dbe850579a6ede, type: 2}
+  groundLayerName: Ground
   meshCompute: {fileID: 7200000, guid: f3de4a9b67304314f837c99e785f8d84, type: 3}
   densityCompute: {fileID: 7200000, guid: 41b3a140912596f428d35fbdc01a272b, type: 3}
   blurCompute: {fileID: 7200000, guid: ae1ae60912559604bb90c4ae02c46276, type: 3}
-  material: {fileID: 2100000, guid: 4e1ddbbf55c53fe4f9dbe850579a6ede, type: 2}
-  flatnessThreshold: 2.8
-  detail3DStrength: 0.25
+  explosionCompute: {fileID: 7200000, guid: f5136d2a9e310fe40b46c0182f344406, type: 3}
+  chunksPerFrame: 3
+  debugVisualization: 0

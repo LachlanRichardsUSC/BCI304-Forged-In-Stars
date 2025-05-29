@@ -49,9 +49,6 @@ public class MovementSettings : MonoBehaviour
 
         [Tooltip("Delay before jump jets can activate after jumping (in seconds)")]
         public float postJumpDelay = 0.25f;
-
-        //[Tooltip("Maximum duration jump jets can be active")]
-        //public float maxDuration = 2f;
     }
 
     [System.Serializable]
@@ -63,14 +60,18 @@ public class MovementSettings : MonoBehaviour
         [Tooltip("Duration of the dash in seconds")]
         public float dashDuration = 0.2f;
 
-        [Tooltip("Cooldown before dash can be used again")]
-        public float dashCooldown = 1.0f;
-
         [Tooltip("Stamina cost for each dash")]
         public float dashStaminaCost = 25f;
 
         [Tooltip("Whether dash should align with camera forward instead of character forward")]
         public bool useCameraForward = true;
+
+        [Header("Multi-Dash System")]
+        [Tooltip("Maximum number of dashes before cooldown")]
+        public int maxDashes = 4;
+
+        [Tooltip("Time before all dashes reset")]
+        public float dashCooldown = 5.5f;
     }
 
     [System.Serializable]
@@ -147,10 +148,11 @@ public class MovementSettings : MonoBehaviour
         jumpSettings.fallMultiplier = Mathf.Max(1, jumpSettings.fallMultiplier);
 
         jumpJetSettings.thrustForce = Mathf.Max(0, jumpJetSettings.thrustForce);
-        //jumpJetSettings.maxDuration = Mathf.Max(0.1f, jumpJetSettings.maxDuration);
 
         dashSettings.dashForce = Mathf.Max(0, dashSettings.dashForce);
         dashSettings.dashDuration = Mathf.Max(0.01f, dashSettings.dashDuration);
+        dashSettings.dashStaminaCost = Mathf.Max(0, dashSettings.dashStaminaCost);
+        dashSettings.maxDashes = Mathf.Max(1, dashSettings.maxDashes);
         dashSettings.dashCooldown = Mathf.Max(0, dashSettings.dashCooldown);
 
         groundHandling.groundSnapForce = Mathf.Max(0, groundHandling.groundSnapForce);
