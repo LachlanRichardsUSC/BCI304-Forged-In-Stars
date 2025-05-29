@@ -73,6 +73,13 @@ public class MovementSettings : MonoBehaviour
         public bool useCameraForward = true;
     }
 
+    [System.Serializable]
+    public class GroundHandlingSettings
+    {
+        [Tooltip("Force applied to keep character grounded (higher for larger characters)")]
+        public float groundSnapForce = 15f;
+    }
+
     [Header("Basic Movement")]
     [SerializeField] private BasicMovementSettings basicMovement = new();
 
@@ -85,11 +92,15 @@ public class MovementSettings : MonoBehaviour
     [Header("Dash Configuration")]
     [SerializeField] private DashSettings dashSettings = new();
 
+    [Header("Ground Handling")]
+    [SerializeField] private GroundHandlingSettings groundHandling = new();
+
     // Public getters for settings
     public BasicMovementSettings BasicMovement => basicMovement;
     public JumpSettings Jump => jumpSettings;
     public JumpJetSettings JumpJet => jumpJetSettings;
     public DashSettings Dash => dashSettings;
+    public GroundHandlingSettings GroundHandling => groundHandling;
 
     /// <summary>
     /// Optional: Method to apply a complete settings preset
@@ -102,6 +113,26 @@ public class MovementSettings : MonoBehaviour
         jumpSettings = preset.jumpSettings;
         jumpJetSettings = preset.jumpJetSettings;
         dashSettings = preset.dashSettings;
+        groundHandling = preset.groundHandling;
+    }
+
+    /// <summary>
+    /// Applies settings optimized for large characters (5-10m tall)
+    /// </summary>
+    public void ApplyLargeCharacterPreset()
+    {
+        // Scale movement speeds
+        basicMovement.walkSpeed = 8f;
+        basicMovement.runSpeed = 15f;
+
+        // Stronger jump for larger mass
+        jumpSettings.jumpForce = 15f;
+
+        // Stronger ground handling
+        groundHandling.groundSnapForce = 20f;
+
+        // Adjust jump jets for larger character
+        jumpJetSettings.thrustForce = 20f;
     }
 
     private void OnValidate()
@@ -121,5 +152,7 @@ public class MovementSettings : MonoBehaviour
         dashSettings.dashForce = Mathf.Max(0, dashSettings.dashForce);
         dashSettings.dashDuration = Mathf.Max(0.01f, dashSettings.dashDuration);
         dashSettings.dashCooldown = Mathf.Max(0, dashSettings.dashCooldown);
+
+        groundHandling.groundSnapForce = Mathf.Max(0, groundHandling.groundSnapForce);
     }
 }

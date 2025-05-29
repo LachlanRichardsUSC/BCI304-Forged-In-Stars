@@ -1,0 +1,39 @@
+#pragma kernel CSMain
+
+RWTexture3D<float> DensityTexture;
+float3 explosionCenter;
+float radius;
+float strength;
+int textureSize;
+float boundsSize;
+float isoLevel;
+int3 regionMin;
+int3 regionMax;
+
+float sdSphere(float3 p, float3 center, float radius)
+{
+    return length(p - center) - radius;
+}
+
+[numthreads(8, 8, 8)]
+void CSMain(int3 id : SV_DispatchThreadID)
+{
+    int3 texCoord = id + regionMin;
+    
+    if (any(texCoord >= textureSize) || any(texCoord < 0))
+        return;
+    
+    float3 worldPos = (float3(texCoord) / (textureSize - 1.0) - 0.5) * boundsSize;
+    float3 explosionWorldPos = (explosionCenter / (textureSize - 1.0) - 0.5) * boundsSize;
+    
+    float currentDensity = DensityTexture[texCoord];
+    float sdfValue = sdSphere(worldPos, explosionWorldPos, radius);
+    
+    if (sdfValue < 0.0)
+    {
+        float normalizedDepth = saturate(-sdfValue / radius);
+        float falloff = normalizedDepth * normalizedDepth;
+        float removalAmount = strength * falloff;
+        DensityTexture[texCoord] = currentDensity - removalAmount;
+    }
+}

@@ -1,0 +1,166 @@
+#pragma kernel CSMain
+#include "Noise.hlsl"
+
+// Texture for storing density values
+RWTexture3D<float> DensityTexture;
+int textureSize;
+int borderWidth;
+
+// Generation parameters
+float boundsSize;
+float terrainSeed;
+
+// Terrain shape parameters (replacing old confusing ones)
+float baseHeight; // Base terrain height (0 = centered at origin)
+float terrainScale; // Overall scale of terrain features
+float terrainAmplitude; // Overall height of terrain features
+int octaves; // Number of noise octaves (4-9 recommended)
+float persistence; // How much each octave contributes (0.4-0.6)
+float lacunarity; // Frequency multiplier between octaves (1.8-2.2)
+
+// Feature parameters
+float warpStrength; // Domain warping strength (0-1)
+float hardFloorHeight; // Y level for hard floor (-inf to disable)
+float hardFloorBlend; // Blend distance for hard floor
+float cavesStrength; // 3D cave features (0-1)
+float ridgeStrength; // Ridge/mountain sharpness (0-1)
+
+// Border parameters
+float borderFalloffStart;
+float borderFalloffSteepness;
+int enableBorderFalloff;
+
+// Advanced 3D noise function that creates better terrain
+// Uses proper octave accumulation as described in GPU Gems
+float terrain3DNoise(float3 pos, float seed)
+{
+    float noise = 0;
+    float amplitude = 1;
+    float frequency = 1;
+    float maxValue = 0; // For normalizing result
+    
+    // Accumulate octaves
+    for (int i = 0; i < octaves; i++)
+    {
+        // Sample noise at current frequency
+        float sampleValue = snoiseseed(pos * frequency, seed + i * 100.0);
+        
+        // Apply ridged noise transformation if enabled
+        if (ridgeStrength > 0)
+        {
+            // Make ridges by taking absolute value and inverting
+            float ridge = 1.0 - abs(sampleValue);
+            ridge = ridge * ridge; // Square for sharper ridges
+            sampleValue = lerp(sampleValue, ridge, ridgeStrength);
+        }
+        
+        noise += sampleValue * amplitude;
+        maxValue += amplitude;
+        
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    
+    // Normalize to [-1, 1] range
+    return noise / maxValue;
+}
+
+// Calculates terrain density value following GPU Gems methodology
+float calculateDensity(int3 cell)
+{
+    // Convert cell position to world space
+    float3 worldPos = (cell / float(textureSize - 1.0f) - 0.5f) * boundsSize;
+    
+    // Start with basic density gradient (negative above ground, positive below)
+    // This is the KEY insight from GPU Gems - density = -y
+    float density = baseHeight - worldPos.y;
+    
+    // Apply domain warping if enabled (warp the input coordinates)
+    float3 warpedPos = worldPos;
+    if (warpStrength > 0)
+    {
+        // Low frequency warp for organic looking terrain
+        float3 warp = float3(
+            snoiseseed(worldPos * 0.01, terrainSeed + 1000),
+            snoiseseed(worldPos * 0.01, terrainSeed + 2000),
+            snoiseseed(worldPos * 0.01, terrainSeed + 3000)
+        );
+        warpedPos += warp * warpStrength * terrainAmplitude;
+    }
+    
+    // Sample 2D terrain height using XZ coordinates
+    float2 pos2D = warpedPos.xz / terrainScale;
+    float terrainHeight = terrain3DNoise(float3(pos2D.x, 0, pos2D.y), terrainSeed) * terrainAmplitude;
+    
+    // Add terrain height to density
+    density += terrainHeight;
+    
+    // Add 3D cave features if enabled
+    if (cavesStrength > 0)
+    {
+        // 3D noise for caves and overhangs
+        float3 pos3D = warpedPos / (terrainScale * 0.5); // Higher frequency for caves
+        float caves = terrain3DNoise(pos3D, terrainSeed + 5000) * terrainAmplitude * cavesStrength;
+        
+        // Blend caves more strongly at certain heights for better results
+        float caveBlend = 1.0 - saturate(abs(worldPos.y - baseHeight) / terrainAmplitude);
+        density += caves * caveBlend;
+    }
+    
+    // Apply hard floor if enabled (creates flat bottom areas)
+    if (hardFloorHeight > -1000)
+    {
+        float floorInfluence = saturate((hardFloorHeight - worldPos.y) / hardFloorBlend);
+        density += floorInfluence * floorInfluence * terrainAmplitude * 2.0;
+    }
+    
+    // Apply border falloff if enabled
+    if (enableBorderFalloff != 0)
+    {
+        float2 normalizedPos = float2(cell.x, cell.z) / float(textureSize - 1);
+        float2 distFromCenter = abs(normalizedPos - 0.5) * 2.0;
+        float distFromEdge = 1.0 - max(distFromCenter.x, distFromCenter.y);
+        
+        float falloffFactor = smoothstep(0.0, borderFalloffStart, distFromEdge);
+        falloffFactor = pow(max(0.0, falloffFactor), borderFalloffSteepness);
+        
+        // Reduce density at borders to create falloff
+        density *= falloffFactor;
+        
+        // Also reduce features at borders
+        density -= (1.0 - falloffFactor) * terrainAmplitude;
+    }
+    
+    return density;
+}
+
+[numthreads(8, 8, 8)]
+void CSMain(int3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= textureSize || id.y >= textureSize || id.z >= textureSize)
+    {
+        return;
+    }
+
+    float density;
+
+    // Create solid bottom layer for stability
+    if (id.y <= borderWidth)
+    {
+        density = 5.0;
+    }
+    // Create empty top layer (air)
+    else if (id.y >= textureSize - borderWidth)
+    {
+        density = -5.0;
+    }
+    else
+    {
+        // Normal terrain generation
+        density = calculateDensity(id);
+    }
+
+    // Store calculated density
+    DensityTexture[id] = density;
+}

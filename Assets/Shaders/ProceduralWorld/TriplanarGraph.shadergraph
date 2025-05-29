@@ -6468,8 +6468,8 @@
     "m_ObjectId": "94caa32d88f64a93928739da40a8df4e",
     "m_Title": "Steep Layer",
     "m_Position": {
-        "x": -1989.0,
-        "y": -1606.0
+        "x": -1989.0001220703125,
+        "y": -1606.0001220703125
     }
 }
 
@@ -6546,7 +6546,7 @@
     "m_ObjectId": "971f1d030a2c4d73901ff6c1dd92d5ba",
     "m_Title": "Normal Blending",
     "m_Position": {
-        "x": -250.0,
+        "x": -249.9998016357422,
         "y": -479.0
     }
 }
@@ -7561,8 +7561,8 @@
     "m_ObjectId": "b37a4c56fe0045c98ee75a5466a78654",
     "m_Title": "Height Blending",
     "m_Position": {
-        "x": -1926.0,
-        "y": 841.0
+        "x": -1926.0001220703125,
+        "y": 841.0001220703125
     }
 }
 
@@ -7828,8 +7828,8 @@
     "m_ObjectId": "b96208898a5d4e82a64b234cc0054f5a",
     "m_Title": "Side Layer",
     "m_Position": {
-        "x": -1977.0,
-        "y": -549.0
+        "x": -1977.0001220703125,
+        "y": -548.9998779296875
     }
 }
 
@@ -8662,8 +8662,8 @@
     "m_ObjectId": "cf402c7a4a704ce8b48bdb31fe0dedff",
     "m_Title": "Slope Blending",
     "m_Position": {
-        "x": -1937.0,
-        "y": 339.0
+        "x": -1937.000244140625,
+        "y": 339.0001220703125
     }
 }
 

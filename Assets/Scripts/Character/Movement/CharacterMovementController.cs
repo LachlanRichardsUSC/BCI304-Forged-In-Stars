@@ -26,7 +26,6 @@ public class CharacterMovementController : MonoBehaviour
     private float m_FallTime;
     private float m_LastJumpTime;
 
-
     // Dash state
     private bool m_IsDashing;
     private float m_DashTimeRemaining;
@@ -35,9 +34,9 @@ public class CharacterMovementController : MonoBehaviour
 
     // Jump jet state
     private bool m_IsUsingJumpJets;
-    private float m_JumpJetDuration;
-    private float m_JumpJetDelayTimer = 0f;  // Add this as a class field
-    private const float k_JumpJetDelay = 0.25f;  // Add this as a class constant
+   // private float m_JumpJetDuration;
+    private float m_JumpJetDelayTimer = 0f;
+   // private const float k_JumpJetDelay = 0.25f;
 
     // Events
     public event System.Action OnJumpInitiated;
@@ -45,8 +44,6 @@ public class CharacterMovementController : MonoBehaviour
     public event System.Action<float> OnMoveSpeedChanged;
     public event System.Action OnJumpJetStarted;
     public event System.Action OnJumpJetEnded;
-
-
 
     private void Awake()
     {
@@ -112,6 +109,7 @@ public class CharacterMovementController : MonoBehaviour
 
         HandleDash();
         UpdateCooldowns();
+
     }
 
     private void HandleMovement()
@@ -186,7 +184,7 @@ public class CharacterMovementController : MonoBehaviour
         // Ground snap
         else if (m_GroundDetector.IsGrounded && m_VerticalVelocity < 0)
         {
-            m_VerticalVelocity = -2f; // Small downward force to maintain ground contact
+            m_VerticalVelocity = -m_Settings.GroundHandling.groundSnapForce;
         }
         // Apply vertical movement
         m_Controller.Move(new Vector3(0, m_VerticalVelocity, 0) * Time.deltaTime);
