@@ -5,6 +5,8 @@ TagManager:
   serializedVersion: 3
   tags:
   - Ground
+  - Checkpoint
+  - Trap
   layers:
   - Default
   - TransparentFX
@@ -15,7 +17,7 @@ TagManager:
   - Ground
   - MapObject
   - Enemy
-  - 
+  - Post Processing
   - 
   - 
   - 
@@ -51,3 +53,4 @@ TagManager:
   - Light Layer 5
   - Light Layer 6
   - Light Layer 7
+  - Pos
