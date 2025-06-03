@@ -228,8 +228,9 @@ GameObject:
   - component: {fileID: 3045853185654229823}
   - component: {fileID: 4987316256225830685}
   - component: {fileID: 631236982593181924}
+  - component: {fileID: 956234417359699149}
   m_Layer: 0
-  m_Name: Spawn_Door
+  m_Name: EnemySpawner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -326,3 +327,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.5638313, y: 0.73909116, z: 0.06681681}
   m_Center: {x: 0.0000009536743, y: 0.009268239, z: 0.0127437115}
+--- !u!114 &956234417359699149
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2614914799194749841}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ee7af3983c10404dbb24a0ed499c30f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fastenemyPrefab: {fileID: 0}
+  heavyenemyPrefab: {fileID: 0}
+  spawnPoints: []
+  spawnInterval: 5
