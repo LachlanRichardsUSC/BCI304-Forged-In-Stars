@@ -82,7 +82,7 @@ Material:
     m_Colors:
     - _SideColour: {r: 0.7830189, g: 0.70550233, b: 0.5577163, a: 0}
     - _SteepColour: {r: 0.8867924, g: 0.74042004, b: 0.6901922, a: 0}
-    - _TopColour: {r: 0.42203695, g: 0.7264151, b: 0.34607512, a: 0}
+    - _TopColour: {r: 0.7566135, g: 1, b: 0.6933962, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &7478027994724333232
