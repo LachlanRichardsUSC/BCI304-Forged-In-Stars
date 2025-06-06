@@ -61,6 +61,10 @@ public class TerrainObjectPlacer : MonoBehaviour
     private bool randomRotation = true;
 
     [SerializeField]
+    [Tooltip("Base scale multiplier for all objects")]
+    [Range(0.1f, 10f)] private float baseScale = 1f;
+
+    [SerializeField]
     [Tooltip("Random scale variation (0 = no variation, 0.2 = ±20%)")]
     [Range(0f, 0.5f)] private float scaleVariation = 0.1f;
 
@@ -103,13 +107,29 @@ public class TerrainObjectPlacer : MonoBehaviour
             GenerateDecorationPoints();
         }
 
+        // Debug key to check GPU instancing status
+        if (Input.GetKeyDown(KeyCode.G))
+        {
+            DebugGPUInstancing();
+        }
+
         // Render GPU instanced objects
         if (useGPUInstancing && _instanceMatrices != null && _instanceMatrices.Length > 0 &&
             instanceMesh != null && instanceMaterial != null)
         {
-            Graphics.DrawMeshInstanced(instanceMesh, 0, instanceMaterial, _instanceMatrices,
-                _instanceMatrices.Length, _propertyBlock, UnityEngine.Rendering.ShadowCastingMode.On,
-                true, gameObject.layer, null, UnityEngine.Rendering.LightProbeUsage.BlendProbes);
+            Graphics.DrawMeshInstanced(
+                mesh: instanceMesh,
+                submeshIndex: 0,
+                material: instanceMaterial,
+                matrices: _instanceMatrices,
+                count: _instanceMatrices.Length,
+                properties: _propertyBlock,
+                castShadows: UnityEngine.Rendering.ShadowCastingMode.On,
+                receiveShadows: true,
+                layer: 0, // Default layer
+                camera: null, // All cameras
+                lightProbeUsage: UnityEngine.Rendering.LightProbeUsage.BlendProbes
+            );
         }
     }
 
@@ -154,7 +174,6 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     /// <summary>
     /// Generates 2D Poisson disk samples using Bridson's algorithm.
-    /// https://sighack.com/post/poisson-disk-sampling-bridsons-algorithm
     /// </summary>
     private List<Vector2> GeneratePoissonDiskSamples()
     {
@@ -336,9 +355,11 @@ public class TerrainObjectPlacer : MonoBehaviour
         _instanceMatrices = new Matrix4x4[_validPoints.Count];
         _propertyBlock = new MaterialPropertyBlock();
 
-        // Calculate render bounds for culling
-        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+        // Calculate render bounds for culling - make it LARGE to avoid culling issues
+        Vector3 center = transform.position;
+        float maxScale = baseScale * (1f + scaleVariation); // Account for largest possible scale
+        Vector3 size = Vector3.one * (scatterRadius * 2.5f + maxScale * 10f); // Extra padding for scale
+        _renderBounds = new Bounds(center, size);
 
         for (int i = 0; i < _validPoints.Count; i++)
         {
@@ -351,27 +372,31 @@ public class TerrainObjectPlacer : MonoBehaviour
                 rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
             }
 
-            // Random scale variation if enabled
-            float scale = 1f;
+            // Calculate final scale: base scale + random variation
+            float scale = baseScale;
             if (scaleVariation > 0)
             {
-                scale = 1f + Random.Range(-scaleVariation, scaleVariation);
+                float variation = Random.Range(-scaleVariation, scaleVariation);
+                scale = baseScale * (1f + variation);
             }
 
             // Create transformation matrix
             _instanceMatrices[i] = Matrix4x4.TRS(position, rotation, Vector3.one * scale);
-
-            // Update bounds
-            min = Vector3.Min(min, position);
-            max = Vector3.Max(max, position);
         }
 
-        // Set render bounds with some padding for scale variation
-        Vector3 center = (min + max) * 0.5f;
-        Vector3 size = (max - min) + Vector3.one * (scaleVariation * 2f + 2f); // Padding for object size
-        _renderBounds = new Bounds(center, size);
-
         Debug.Log($"Setup GPU instancing for {_validPoints.Count} objects");
+        Debug.Log($"Render bounds: center={_renderBounds.center}, size={_renderBounds.size}");
+        Debug.Log($"First instance position: {_validPoints[0]}");
+
+        // Validate material settings
+        if (!instanceMaterial.enableInstancing)
+        {
+            Debug.LogError($"Material '{instanceMaterial.name}' does NOT have GPU Instancing enabled! Check Inspector > Advanced Options > Enable GPU Instancing");
+        }
+        else
+        {
+            Debug.Log($"Material '{instanceMaterial.name}' has GPU Instancing enabled ✓");
+        }
     }
 
     /// <summary>
@@ -401,12 +426,14 @@ public class TerrainObjectPlacer : MonoBehaviour
             // Spawn object
             GameObject spawnedObject = Instantiate(prefab, position, rotation, transform);
 
-            // Random scale variation if enabled
+            // Calculate final scale: base scale + random variation
+            float scale = baseScale;
             if (scaleVariation > 0)
             {
-                float scale = 1f + Random.Range(-scaleVariation, scaleVariation);
-                spawnedObject.transform.localScale *= scale;
+                float variation = Random.Range(-scaleVariation, scaleVariation);
+                scale = baseScale * (1f + variation);
             }
+            spawnedObject.transform.localScale = Vector3.one * scale;
 
             _spawnedObjects.Add(spawnedObject);
         }
@@ -532,6 +559,38 @@ public class TerrainObjectPlacer : MonoBehaviour
         {
             Debug.LogWarning($"{name}: Material '{instanceMaterial.name}' does not have GPU Instancing enabled!");
         }
+    }
+
+    /// <summary>
+    /// Debug GPU instancing status (press G key).
+    /// </summary>
+    private void DebugGPUInstancing()
+    {
+        if (!useGPUInstancing)
+        {
+            Debug.Log("GPU Instancing is DISABLED");
+            return;
+        }
+
+        Debug.Log("=== GPU Instancing Debug ===");
+        Debug.Log($"Instance matrices: {(_instanceMatrices?.Length ?? 0)}");
+        Debug.Log($"Mesh assigned: {instanceMesh != null}");
+        Debug.Log($"Material assigned: {instanceMaterial != null}");
+
+        if (instanceMaterial != null)
+        {
+            Debug.Log($"Material instancing enabled: {instanceMaterial.enableInstancing}");
+            Debug.Log($"Material shader: {instanceMaterial.shader.name}");
+        }
+
+        if (_instanceMatrices != null && _instanceMatrices.Length > 0)
+        {
+            Debug.Log($"First matrix position: {_instanceMatrices[0].GetColumn(3)}");
+            Debug.Log($"Render bounds: {_renderBounds}");
+        }
+
+        Debug.Log($"Current camera position: {Camera.main?.transform.position}");
+        Debug.Log($"Distance to bounds: {Vector3.Distance(Camera.main?.transform.position ?? Vector3.zero, _renderBounds.center)}");
     }
 
     private void OnDrawGizmosSelected()
