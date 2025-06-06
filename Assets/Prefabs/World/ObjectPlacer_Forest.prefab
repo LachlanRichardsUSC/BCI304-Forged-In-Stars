@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 1324955949323840859}
   - component: {fileID: 6526966481935247713}
   m_Layer: 0
-  m_Name: ObjectPlacer
+  m_Name: ObjectPlacer_Forest
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -54,13 +54,18 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   decorationPrefabs:
-  - {fileID: 0}
-  useGPUInstancing: 1
-  instanceMesh: {fileID: 3836962167230424001, guid: 8c71f03fcb0c13644a30696cafc5cda8, type: 3}
-  instanceMaterial: {fileID: 2100000, guid: 09473d06882d1414b84b1fdb7a095516, type: 2}
+  - {fileID: 6117071349010126079, guid: d250af4848f51154f9a2bf6a85b60ac2, type: 3}
+  - {fileID: 5935278547815300987, guid: e05ae677c7b3bc546bd36b488586fb0c, type: 3}
+  - {fileID: 5153741093904279990, guid: ef8374d642969b14baa54045236c5fb0, type: 3}
+  - {fileID: 6739804228592001243, guid: 6cdd667aa0034cd4dadc8d58a65fb098, type: 3}
+  - {fileID: 2549054593802932585, guid: bee651b89d6b3ef48b19cfe8a4c9fa42, type: 3}
+  - {fileID: 7098389285256826050, guid: fb070a2d31206d9499ecc8a77be0ebf0, type: 3}
+  useGPUInstancing: 0
+  instanceMesh: {fileID: 0}
+  instanceMaterial: {fileID: 0}
   randomRotation: 1
-  baseScale: 5
-  scaleVariation: 0.1
+  baseScale: 1
+  scaleVariation: 0.333
   showDebugSpheres: 0
   debugSphereMaterial: {fileID: 2100000, guid: 1cc56ebaea019ba4abad9bb970f27d90, type: 2}
   debugSphereSize: 1
