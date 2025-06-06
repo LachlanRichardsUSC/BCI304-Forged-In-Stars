@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Scatters decorative objects on terrain using Poisson disk sampling with slope filtering.
+/// Scatters decorative objects on terrain using Poisson disk sampling, configurable slope values and density.
 /// </summary>
 public class TerrainObjectPlacer : MonoBehaviour
 {
@@ -100,6 +100,7 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     /// <summary>
     /// Generates 2D Poisson disk samples using Bridson's algorithm.
+    /// https://sighack.com/post/poisson-disk-sampling-bridsons-algorithm
     /// </summary>
     private List<Vector2> GeneratePoissonDiskSamples()
     {
