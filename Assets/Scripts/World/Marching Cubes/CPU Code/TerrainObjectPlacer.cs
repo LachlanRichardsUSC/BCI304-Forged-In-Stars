@@ -1,8 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
 /// Scatters decorative objects on terrain using Poisson disk sampling, configurable slope values and density.
+/// Based off Bridson's Algorithm
+/// https://sighack.com/post/poisson-disk-sampling-bridsons-algorithm
 /// </summary>
 public class TerrainObjectPlacer : MonoBehaviour
 {
@@ -37,15 +39,46 @@ public class TerrainObjectPlacer : MonoBehaviour
     [Tooltip("Layer mask for terrain (should match your ground layer)")]
     private LayerMask terrainLayerMask = 1;
 
+    [Header("Decoration Objects")]
+    [SerializeField]
+    [Tooltip("Prefabs to scatter (for GameObject approach)")]
+    private GameObject[] decorationPrefabs;
+
+    [SerializeField]
+    [Tooltip("Use GPU instancing instead of GameObjects (better performance)")]
+    private bool useGPUInstancing = true;
+
+    [SerializeField]
+    [Tooltip("Mesh for GPU instancing")]
+    private Mesh instanceMesh;
+
+    [SerializeField]
+    [Tooltip("Material for GPU instancing (must have GPU Instancing enabled)")]
+    private Material instanceMaterial;
+
+    [SerializeField]
+    [Tooltip("Random rotation on Y axis")]
+    private bool randomRotation = true;
+
+    [SerializeField]
+    [Tooltip("Random scale variation (0 = no variation, 0.2 = ±20%)")]
+    [Range(0f, 0.5f)] private float scaleVariation = 0.1f;
+
     [Header("Debug Visualization")]
-    [SerializeField] private bool showDebugSpheres = true;
+    [SerializeField] private bool showDebugSpheres = false;
     [SerializeField] private Material debugSphereMaterial;
     [SerializeField] private float debugSphereSize = 1f;
 
     // Runtime data
     private List<Vector3> _validPoints = new List<Vector3>();
     private List<GameObject> _debugSpheres = new List<GameObject>();
+    private List<GameObject> _spawnedObjects = new List<GameObject>();
     private bool _isGenerated = false;
+
+    // GPU Instancing data
+    private Matrix4x4[] _instanceMatrices;
+    private MaterialPropertyBlock _propertyBlock;
+    private Bounds _renderBounds;
 
     // Poisson disk sampling grid
     private float _cellSize;
@@ -55,6 +88,8 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     private void Start()
     {
+        ValidateGPUInstancing();
+
         // Wait a frame to ensure terrain is generated
         Invoke(nameof(GenerateDecorationPoints), 0.1f);
     }
@@ -66,6 +101,15 @@ public class TerrainObjectPlacer : MonoBehaviour
         {
             Debug.Log("Regenerating decoration points...");
             GenerateDecorationPoints();
+        }
+
+        // Render GPU instanced objects
+        if (useGPUInstancing && _instanceMatrices != null && _instanceMatrices.Length > 0 &&
+            instanceMesh != null && instanceMaterial != null)
+        {
+            Graphics.DrawMeshInstanced(instanceMesh, 0, instanceMaterial, _instanceMatrices,
+                _instanceMatrices.Length, _propertyBlock, UnityEngine.Rendering.ShadowCastingMode.On,
+                true, gameObject.layer, null, UnityEngine.Rendering.LightProbeUsage.BlendProbes);
         }
     }
 
@@ -85,7 +129,17 @@ public class TerrainObjectPlacer : MonoBehaviour
         // Convert 2D samples to 3D world positions with slope filtering
         FilterSamplesOnTerrain(poissonSamples);
 
-        // Create debug visualization
+        // Create decorations based on chosen method
+        if (useGPUInstancing)
+        {
+            SetupGPUInstancing();
+        }
+        else
+        {
+            SpawnPrefabObjects();
+        }
+
+        // Create debug visualization if enabled
         if (showDebugSpheres)
         {
             CreateDebugVisualization();
@@ -269,6 +323,98 @@ public class TerrainObjectPlacer : MonoBehaviour
     }
 
     /// <summary>
+    /// Sets up GPU instancing matrices for all valid points.
+    /// </summary>
+    private void SetupGPUInstancing()
+    {
+        if (_validPoints.Count == 0 || instanceMesh == null || instanceMaterial == null)
+        {
+            Debug.LogWarning("Cannot setup GPU instancing: missing mesh, material, or no valid points");
+            return;
+        }
+
+        _instanceMatrices = new Matrix4x4[_validPoints.Count];
+        _propertyBlock = new MaterialPropertyBlock();
+
+        // Calculate render bounds for culling
+        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+
+        for (int i = 0; i < _validPoints.Count; i++)
+        {
+            Vector3 position = _validPoints[i];
+
+            // Random rotation on Y axis if enabled
+            Quaternion rotation = Quaternion.identity;
+            if (randomRotation)
+            {
+                rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+            }
+
+            // Random scale variation if enabled
+            float scale = 1f;
+            if (scaleVariation > 0)
+            {
+                scale = 1f + Random.Range(-scaleVariation, scaleVariation);
+            }
+
+            // Create transformation matrix
+            _instanceMatrices[i] = Matrix4x4.TRS(position, rotation, Vector3.one * scale);
+
+            // Update bounds
+            min = Vector3.Min(min, position);
+            max = Vector3.Max(max, position);
+        }
+
+        // Set render bounds with some padding for scale variation
+        Vector3 center = (min + max) * 0.5f;
+        Vector3 size = (max - min) + Vector3.one * (scaleVariation * 2f + 2f); // Padding for object size
+        _renderBounds = new Bounds(center, size);
+
+        Debug.Log($"Setup GPU instancing for {_validPoints.Count} objects");
+    }
+
+    /// <summary>
+    /// Spawns prefab GameObjects at all valid points.
+    /// </summary>
+    private void SpawnPrefabObjects()
+    {
+        if (_validPoints.Count == 0 || decorationPrefabs == null || decorationPrefabs.Length == 0)
+        {
+            Debug.LogWarning("Cannot spawn prefabs: no prefabs assigned or no valid points");
+            return;
+        }
+
+        foreach (Vector3 position in _validPoints)
+        {
+            // Choose random prefab
+            GameObject prefab = decorationPrefabs[Random.Range(0, decorationPrefabs.Length)];
+            if (prefab == null) continue;
+
+            // Random rotation on Y axis if enabled
+            Quaternion rotation = Quaternion.identity;
+            if (randomRotation)
+            {
+                rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+            }
+
+            // Spawn object
+            GameObject spawnedObject = Instantiate(prefab, position, rotation, transform);
+
+            // Random scale variation if enabled
+            if (scaleVariation > 0)
+            {
+                float scale = 1f + Random.Range(-scaleVariation, scaleVariation);
+                spawnedObject.transform.localScale *= scale;
+            }
+
+            _spawnedObjects.Add(spawnedObject);
+        }
+
+        Debug.Log($"Spawned {_spawnedObjects.Count} prefab objects");
+    }
+
+    /// <summary>
     /// Creates debug sphere visualization for valid points.
     /// </summary>
     private void CreateDebugVisualization()
@@ -320,6 +466,20 @@ public class TerrainObjectPlacer : MonoBehaviour
         }
         _debugSpheres.Clear();
 
+        // Destroy previous spawned objects
+        foreach (GameObject obj in _spawnedObjects)
+        {
+            if (obj != null)
+            {
+                DestroyImmediate(obj);
+            }
+        }
+        _spawnedObjects.Clear();
+
+        // Clear GPU instancing data
+        _instanceMatrices = null;
+        _propertyBlock = null;
+
         _isGenerated = false;
     }
 
@@ -336,6 +496,44 @@ public class TerrainObjectPlacer : MonoBehaviour
     /// </summary>
     public bool IsGenerated => _isGenerated;
 
+    /// <summary>
+    /// Gets the instance matrices for GPU instancing (read-only).
+    /// </summary>
+    public Matrix4x4[] GetInstanceMatrices()
+    {
+        return _instanceMatrices != null ? (Matrix4x4[])_instanceMatrices.Clone() : null;
+    }
+
+    /// <summary>
+    /// Gets the list of spawned GameObjects (read-only).
+    /// </summary>
+    public List<GameObject> GetSpawnedObjects()
+    {
+        return new List<GameObject>(_spawnedObjects);
+    }
+
+    /// <summary>
+    /// Validates GPU instancing setup.
+    /// </summary>
+    private void ValidateGPUInstancing()
+    {
+        if (!useGPUInstancing) return;
+
+        if (instanceMesh == null)
+        {
+            Debug.LogError($"{name}: GPU Instancing enabled but no mesh assigned!");
+        }
+
+        if (instanceMaterial == null)
+        {
+            Debug.LogError($"{name}: GPU Instancing enabled but no material assigned!");
+        }
+        else if (!instanceMaterial.enableInstancing)
+        {
+            Debug.LogWarning($"{name}: Material '{instanceMaterial.name}' does not have GPU Instancing enabled!");
+        }
+    }
+
     private void OnDrawGizmosSelected()
     {
         // Draw scatter area
@@ -346,5 +544,12 @@ public class TerrainObjectPlacer : MonoBehaviour
         Gizmos.color = Color.blue;
         Vector3 raycastOrigin = transform.position + Vector3.up * raycastHeight;
         Gizmos.DrawWireCube(raycastOrigin, new Vector3(scatterRadius * 2f, 0.1f, scatterRadius * 2f));
+
+        // Draw GPU instancing bounds if available
+        if (useGPUInstancing && _instanceMatrices != null && _instanceMatrices.Length > 0)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(_renderBounds.center, _renderBounds.size);
+        }
     }
 }
