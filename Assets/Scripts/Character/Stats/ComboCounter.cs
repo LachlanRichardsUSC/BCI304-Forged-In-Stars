@@ -8,6 +8,10 @@ public class ComboCounter : MonoBehaviour
     private int comboCount = 0;           // Current combo
     private float lastClickTime;          // When the last hit occurred
 
+    void Start()
+    {
+        comboCount = 0;
+    }
     void Update()
     {
         // If time passed since last hit is too long, reset combo
