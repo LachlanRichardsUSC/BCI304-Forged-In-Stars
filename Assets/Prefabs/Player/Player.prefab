@@ -102,6 +102,7 @@ GameObject:
   - component: {fileID: 140887218726377132}
   - component: {fileID: 2192070372649867056}
   - component: {fileID: 7630324220713767317}
+  - component: {fileID: -2267591077344947421}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -211,9 +212,10 @@ MonoBehaviour:
   dashSettings:
     dashForce: 50
     dashDuration: 0.2
-    dashCooldown: 0.25
     dashStaminaCost: 15
     useCameraForward: 1
+    maxDashes: 4
+    dashCooldown: 4
   groundHandling:
     groundSnapForce: 10
 --- !u!114 &2192070372649867056
@@ -264,6 +266,18 @@ MonoBehaviour:
     BaseValue: 10
   DefaultStat:
     BaseValue: 0
+--- !u!114 &-2267591077344947421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6389006153760245811}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d53f471293eb424c8e8bbe580f0c065, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &9162984349042862974
 GameObject:
   m_ObjectHideFlags: 0
