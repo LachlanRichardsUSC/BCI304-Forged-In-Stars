@@ -704,7 +704,7 @@ public class TerrainGenerator : MonoBehaviour
         Debug.Log($"Spatial cell size: {_spatialCellSize}, Chunk size: {terrainScale / worldSize}");
 
         ApplyExplosionToDensity(worldPosition, radius, strength);
-        StartCoroutine(RegenerateChunksProgressively(affectedChunks, worldPosition));
+        StartCoroutine(RegenerateChunksProgressively(affectedChunks, worldPosition, radius));
     }
 
     #endregion
@@ -866,7 +866,7 @@ public class TerrainGenerator : MonoBehaviour
         ComputeHelper.Dispatch(explosionCompute, sizeX, sizeY, sizeZ);
     }
 
-    private System.Collections.IEnumerator RegenerateChunksProgressively(List<Chunk> chunks, Vector3 explosionCenter)
+    private System.Collections.IEnumerator RegenerateChunksProgressively(List<Chunk> chunks, Vector3 explosionCenter, float explosionRadius)
     {
         chunks.Sort((a, b) =>
             Vector3.Distance(a.Centre, explosionCenter).CompareTo(
@@ -887,6 +887,13 @@ public class TerrainGenerator : MonoBehaviour
 
             yield return null;
         }
+
+        PathNetworkGenerator pathGen = Object.FindAnyObjectByType<PathNetworkGenerator>();
+        if (pathGen != null)
+        {
+            pathGen.OnTerrainDeformed(explosionCenter, explosionRadius);
+        }
+
     }
 
     private void OnDrawGizmos()
