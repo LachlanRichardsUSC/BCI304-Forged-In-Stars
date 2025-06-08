@@ -2,12 +2,70 @@
 using UnityEngine;
 
 /// <summary>
+/// Static registry to prevent overlapping between different scatterer types.
+/// </summary>
+public static class ScattererRegistry
+{
+    private static List<Vector3> occupiedPositions = new List<Vector3>();
+    private static List<float> exclusionRadii = new List<float>();
+
+    /// <summary>
+    /// Clears all registered positions. Call this when regenerating all scatterers.
+    /// </summary>
+    public static void Clear()
+    {
+        occupiedPositions.Clear();
+        exclusionRadii.Clear();
+    }
+
+    /// <summary>
+    /// Checks if a position conflicts with any registered positions.
+    /// </summary>
+    public static bool IsPositionBlocked(Vector3 pos, float checkRadius)
+    {
+        for (int i = 0; i < occupiedPositions.Count; i++)
+        {
+            float totalRadius = checkRadius + exclusionRadii[i];
+            if (Vector3.Distance(pos, occupiedPositions[i]) < totalRadius)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Registers a position as occupied with the given exclusion radius.
+    /// </summary>
+    public static void RegisterPosition(Vector3 pos, float exclusionRadius)
+    {
+        occupiedPositions.Add(pos);
+        exclusionRadii.Add(exclusionRadius);
+    }
+
+    /// <summary>
+    /// Gets the count of registered positions (for debugging).
+    /// </summary>
+    public static int GetRegisteredCount()
+    {
+        return occupiedPositions.Count;
+    }
+}
+
+/// <summary>
 /// Scatters decorative objects on terrain using Poisson disk sampling, configurable slope values and density.
 /// Based off Bridson's Algorithm
 /// https://sighack.com/post/poisson-disk-sampling-bridsons-algorithm
 /// </summary>
 public class TerrainObjectPlacer : MonoBehaviour
 {
+    [Header("Scatterer Priority")]
+    [SerializeField]
+    [Tooltip("Lower numbers generate first (0=highest priority). Castles=0, Houses=1, Vegetation=2")]
+    [Range(0, 10)] private int generationPriority = 0;
+
+    [SerializeField]
+    [Tooltip("Distance to keep other object types away from this scatterer's objects")]
+    [Range(1f, 50f)] private float exclusionRadius = 10f;
+
     [Header("Poisson Disk Sampling")]
     [SerializeField]
     [Tooltip("Minimum distance between decoration objects")]
@@ -41,20 +99,8 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     [Header("Decoration Objects")]
     [SerializeField]
-    [Tooltip("Prefabs to scatter (for GameObject approach)")]
+    [Tooltip("Prefabs to scatter")]
     private GameObject[] decorationPrefabs;
-
-    [SerializeField]
-    [Tooltip("Use GPU instancing instead of GameObjects (better performance)")]
-    private bool useGPUInstancing = true;
-
-    [SerializeField]
-    [Tooltip("Mesh for GPU instancing")]
-    private Mesh instanceMesh;
-
-    [SerializeField]
-    [Tooltip("Material for GPU instancing (must have GPU Instancing enabled)")]
-    private Material instanceMaterial;
 
     [SerializeField]
     [Tooltip("Random rotation on Y axis")]
@@ -83,11 +129,6 @@ public class TerrainObjectPlacer : MonoBehaviour
     private List<GameObject> _spawnedObjects = new List<GameObject>();
     private bool _isGenerated = false;
 
-    // GPU Instancing data
-    private Matrix4x4[] _instanceMatrices;
-    private MaterialPropertyBlock _propertyBlock;
-    private Bounds _renderBounds;
-
     // Poisson disk sampling grid
     private float _cellSize;
     private int _gridWidth, _gridHeight;
@@ -96,10 +137,16 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     private void Start()
     {
-        ValidateGPUInstancing();
+        // Clear registry if this is the highest priority scatterer
+        if (generationPriority == 0)
+        {
+            ScattererRegistry.Clear();
+            Debug.Log("Cleared ScattererRegistry (highest priority scatterer)");
+        }
 
-        // Wait a frame to ensure terrain is generated
-        Invoke(nameof(GenerateDecorationPoints), 0.1f);
+        // Wait a frame to ensure terrain is generated, then wait for priority order
+        float delay = 0.1f + (generationPriority * 0.1f);
+        Invoke(nameof(GenerateDecorationPoints), delay);
     }
 
     private void Update()
@@ -108,32 +155,20 @@ public class TerrainObjectPlacer : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             Debug.Log("Regenerating decoration points...");
+
+            // Clear registry if this is the highest priority scatterer
+            if (generationPriority == 0)
+            {
+                ScattererRegistry.Clear();
+            }
+
             GenerateDecorationPoints();
         }
 
-        // Debug key to check GPU instancing status
-        if (Input.GetKeyDown(KeyCode.G))
+        // Debug key to check registry status
+        if (Input.GetKeyDown(KeyCode.T))
         {
-            DebugGPUInstancing();
-        }
-
-        // Render GPU instanced objects
-        if (useGPUInstancing && _instanceMatrices != null && _instanceMatrices.Length > 0 &&
-            instanceMesh != null && instanceMaterial != null)
-        {
-            Graphics.DrawMeshInstanced(
-                mesh: instanceMesh,
-                submeshIndex: 0,
-                material: instanceMaterial,
-                matrices: _instanceMatrices,
-                count: _instanceMatrices.Length,
-                properties: _propertyBlock,
-                castShadows: UnityEngine.Rendering.ShadowCastingMode.On,
-                receiveShadows: true,
-                layer: 0, // Default layer
-                camera: null, // All cameras
-                lightProbeUsage: UnityEngine.Rendering.LightProbeUsage.BlendProbes
-            );
+            DebugRegistry();
         }
     }
 
@@ -146,22 +181,20 @@ public class TerrainObjectPlacer : MonoBehaviour
 
         ClearPreviousPoints();
 
+        Debug.Log($"[Priority {generationPriority}] Starting generation. Registry has {ScattererRegistry.GetRegisteredCount()} existing positions.");
+
         // Generate 2D Poisson disk samples
         List<Vector2> poissonSamples = GeneratePoissonDiskSamples();
         Debug.Log($"Generated {poissonSamples.Count} 2D Poisson samples");
 
-        // Convert 2D samples to 3D world positions with slope filtering
+        // Convert 2D samples to 3D world positions with slope filtering and registry checking
         FilterSamplesOnTerrain(poissonSamples);
 
-        // Create decorations based on chosen method
-        if (useGPUInstancing)
-        {
-            SetupGPUInstancing();
-        }
-        else
-        {
-            SpawnPrefabObjects();
-        }
+        // Register our valid points in the global registry
+        RegisterValidPoints();
+
+        // Create decorations
+        SpawnPrefabObjects();
 
         // Create debug visualization if enabled
         if (showDebugSpheres)
@@ -170,8 +203,9 @@ public class TerrainObjectPlacer : MonoBehaviour
         }
 
         timer.Stop();
-        Debug.Log($"Decoration generation completed in {timer.ElapsedMilliseconds}ms");
+        Debug.Log($"[Priority {generationPriority}] Decoration generation completed in {timer.ElapsedMilliseconds}ms");
         Debug.Log($"Final decoration points: {_validPoints.Count}");
+        Debug.Log($"Registry now has {ScattererRegistry.GetRegisteredCount()} total positions.");
 
         _isGenerated = true;
     }
@@ -308,13 +342,14 @@ public class TerrainObjectPlacer : MonoBehaviour
     }
 
     /// <summary>
-    /// Filters 2D samples by raycasting onto terrain and checking slopes.
+    /// Filters 2D samples by raycasting onto terrain and checking slopes + registry conflicts.
     /// </summary>
     private void FilterSamplesOnTerrain(List<Vector2> samples)
     {
         Vector3 scatterCenter = transform.position;
         int validCount = 0;
         int totalRaycasts = 0;
+        int registryRejections = 0;
 
         foreach (Vector2 sample in samples)
         {
@@ -336,71 +371,34 @@ public class TerrainObjectPlacer : MonoBehaviour
                 // Check if slope is within valid range
                 if (slope >= minSlope && slope <= maxSlope)
                 {
-                    _validPoints.Add(hit.point);
-                    validCount++;
+                    // Check if position conflicts with existing registered positions
+                    if (!ScattererRegistry.IsPositionBlocked(hit.point, exclusionRadius))
+                    {
+                        _validPoints.Add(hit.point);
+                        validCount++;
+                    }
+                    else
+                    {
+                        registryRejections++;
+                    }
                 }
             }
         }
 
-        Debug.Log($"Raycast stats: {totalRaycasts} hits from {samples.Count} samples, {validCount} valid slopes");
+        Debug.Log($"Raycast stats: {totalRaycasts} hits from {samples.Count} samples, {validCount} valid slopes, {registryRejections} registry rejections");
     }
 
     /// <summary>
-    /// Sets up GPU instancing matrices for all valid points.
+    /// Registers all valid points in the global registry to prevent other scatterers from overlapping.
     /// </summary>
-    private void SetupGPUInstancing()
+    private void RegisterValidPoints()
     {
-        if (_validPoints.Count == 0 || instanceMesh == null || instanceMaterial == null)
+        foreach (Vector3 point in _validPoints)
         {
-            Debug.LogWarning("Cannot setup GPU instancing: missing mesh, material, or no valid points");
-            return;
+            ScattererRegistry.RegisterPosition(point, exclusionRadius);
         }
 
-        _instanceMatrices = new Matrix4x4[_validPoints.Count];
-        _propertyBlock = new MaterialPropertyBlock();
-
-        // Calculate render bounds for culling - make it LARGE to avoid culling issues
-        Vector3 center = transform.position;
-        float maxScale = baseScale * (1f + scaleVariation); // Account for largest possible scale
-        Vector3 size = Vector3.one * (scatterRadius * 2.5f + maxScale * 10f); // Extra padding for scale
-        _renderBounds = new Bounds(center, size);
-
-        for (int i = 0; i < _validPoints.Count; i++)
-        {
-            Vector3 position = _validPoints[i];
-
-            // Random rotation on Y axis if enabled
-            Quaternion rotation = Quaternion.identity;
-            if (randomRotation)
-            {
-                rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
-            }
-
-            // Calculate final scale: base scale + random variation
-            float scale = baseScale;
-            if (scaleVariation > 0)
-            {
-                float variation = Random.Range(-scaleVariation, scaleVariation);
-                scale = baseScale * (1f + variation);
-            }
-
-            // Create transformation matrix
-            _instanceMatrices[i] = Matrix4x4.TRS(position, rotation, Vector3.one * scale);
-        }
-
-        Debug.Log($"Setup GPU instancing for {_validPoints.Count} objects");
-        Debug.Log($"Render bounds: center={_renderBounds.center}, size={_renderBounds.size}");
-        Debug.Log($"First instance position: {_validPoints[0]}");
-
-        // Validate material settings
-        if (!instanceMaterial.enableInstancing)
-        {
-            Debug.LogError($"Material '{instanceMaterial.name}' does NOT have GPU Instancing enabled! Check Inspector > Advanced Options > Enable GPU Instancing");
-        }
-        else
-        {
-            Debug.Log($"Material '{instanceMaterial.name}' has GPU Instancing enabled ✓");
-        }
+        Debug.Log($"Registered {_validPoints.Count} positions with exclusion radius {exclusionRadius}m");
     }
 
     /// <summary>
@@ -427,7 +425,7 @@ public class TerrainObjectPlacer : MonoBehaviour
                 rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
             }
 
-            // Optional Y position adjustment for wonky pivot points
+            // Apply Y adjustment for wonky pivot points
             Vector3 adjustedPosition = position + Vector3.up * adjustYPos;
 
             // Spawn object
@@ -510,10 +508,6 @@ public class TerrainObjectPlacer : MonoBehaviour
         }
         _spawnedObjects.Clear();
 
-        // Clear GPU instancing data
-        _instanceMatrices = null;
-        _propertyBlock = null;
-
         _isGenerated = false;
     }
 
@@ -531,14 +525,6 @@ public class TerrainObjectPlacer : MonoBehaviour
     public bool IsGenerated => _isGenerated;
 
     /// <summary>
-    /// Gets the instance matrices for GPU instancing (read-only).
-    /// </summary>
-    public Matrix4x4[] GetInstanceMatrices()
-    {
-        return _instanceMatrices != null ? (Matrix4x4[])_instanceMatrices.Clone() : null;
-    }
-
-    /// <summary>
     /// Gets the list of spawned GameObjects (read-only).
     /// </summary>
     public List<GameObject> GetSpawnedObjects()
@@ -547,57 +533,15 @@ public class TerrainObjectPlacer : MonoBehaviour
     }
 
     /// <summary>
-    /// Validates GPU instancing setup.
+    /// Debug registry status (press T key).
     /// </summary>
-    private void ValidateGPUInstancing()
+    private void DebugRegistry()
     {
-        if (!useGPUInstancing) return;
-
-        if (instanceMesh == null)
-        {
-            Debug.LogError($"{name}: GPU Instancing enabled but no mesh assigned!");
-        }
-
-        if (instanceMaterial == null)
-        {
-            Debug.LogError($"{name}: GPU Instancing enabled but no material assigned!");
-        }
-        else if (!instanceMaterial.enableInstancing)
-        {
-            Debug.LogWarning($"{name}: Material '{instanceMaterial.name}' does not have GPU Instancing enabled!");
-        }
-    }
-
-    /// <summary>
-    /// Debug GPU instancing status (press G key).
-    /// </summary>
-    private void DebugGPUInstancing()
-    {
-        if (!useGPUInstancing)
-        {
-            Debug.Log("GPU Instancing is DISABLED");
-            return;
-        }
-
-        Debug.Log("=== GPU Instancing Debug ===");
-        Debug.Log($"Instance matrices: {(_instanceMatrices?.Length ?? 0)}");
-        Debug.Log($"Mesh assigned: {instanceMesh != null}");
-        Debug.Log($"Material assigned: {instanceMaterial != null}");
-
-        if (instanceMaterial != null)
-        {
-            Debug.Log($"Material instancing enabled: {instanceMaterial.enableInstancing}");
-            Debug.Log($"Material shader: {instanceMaterial.shader.name}");
-        }
-
-        if (_instanceMatrices != null && _instanceMatrices.Length > 0)
-        {
-            Debug.Log($"First matrix position: {_instanceMatrices[0].GetColumn(3)}");
-            Debug.Log($"Render bounds: {_renderBounds}");
-        }
-
-        Debug.Log($"Current camera position: {Camera.main?.transform.position}");
-        Debug.Log($"Distance to bounds: {Vector3.Distance(Camera.main?.transform.position ?? Vector3.zero, _renderBounds.center)}");
+        Debug.Log("=== ScattererRegistry Debug ===");
+        Debug.Log($"Registry has {ScattererRegistry.GetRegisteredCount()} registered positions");
+        Debug.Log($"This scatterer priority: {generationPriority}");
+        Debug.Log($"This scatterer exclusion radius: {exclusionRadius}m");
+        Debug.Log($"This scatterer valid points: {_validPoints.Count}");
     }
 
     private void OnDrawGizmosSelected()
@@ -611,11 +555,14 @@ public class TerrainObjectPlacer : MonoBehaviour
         Vector3 raycastOrigin = transform.position + Vector3.up * raycastHeight;
         Gizmos.DrawWireCube(raycastOrigin, new Vector3(scatterRadius * 2f, 0.1f, scatterRadius * 2f));
 
-        // Draw GPU instancing bounds if available
-        if (useGPUInstancing && _instanceMatrices != null && _instanceMatrices.Length > 0)
+        // Draw exclusion radius for valid points
+        if (_validPoints != null && _validPoints.Count > 0)
         {
-            Gizmos.color = Color.green;
-            Gizmos.DrawWireCube(_renderBounds.center, _renderBounds.size);
+            Gizmos.color = Color.red;
+            foreach (Vector3 point in _validPoints)
+            {
+                Gizmos.DrawWireSphere(point, exclusionRadius);
+            }
         }
     }
 }
