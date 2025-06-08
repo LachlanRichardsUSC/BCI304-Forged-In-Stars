@@ -28,6 +28,7 @@ Transform:
   m_LocalRotation: {x: 0.00000031921053, y: 0.0000009618317, z: 0.24749035, w: 0.96889037}
   m_LocalPosition: {x: -2.0249996, y: -0.238, z: -0.323974}
   m_LocalScale: {x: 2.6121573, y: 0.31489998, z: 2.03774}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4107024422390526}
   m_RootOrder: 3
@@ -79,6 +80,7 @@ Transform:
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -3.08, y: 1.37, z: 1.36}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4566592589594286}
   - {fileID: 4791266730483356}
@@ -115,6 +117,7 @@ Transform:
   m_LocalRotation: {x: 0.70710677, y: -0, z: -0, w: 0.7071068}
   m_LocalPosition: {x: -0.35, y: 0, z: -1.38}
   m_LocalScale: {x: 0.55584, y: 0.51928, z: 2.171459}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4107024422390526}
   m_RootOrder: 1
@@ -168,6 +171,7 @@ Transform:
   m_LocalRotation: {x: 0.000000022650836, y: 0.0000010131646, z: 0.0014876559, w: 0.9999989}
   m_LocalPosition: {x: 1.086, y: 0.377, z: -0.324}
   m_LocalScale: {x: 4.1099634, y: 0.31489998, z: 2.03774}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4107024422390526}
   m_RootOrder: 2
@@ -221,6 +225,7 @@ Transform:
   m_LocalRotation: {x: 0.70710677, y: -0, z: -0, w: 0.7071068}
   m_LocalPosition: {x: -0.36, y: 0, z: 0.713}
   m_LocalScale: {x: 0.55584, y: 0.51928, z: 2.171459}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4107024422390526}
   m_RootOrder: 0
@@ -273,6 +278,7 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4196257418307402}
   - {fileID: 4107024422390526}
@@ -336,6 +342,7 @@ Transform:
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4999849139159906}
   m_RootOrder: 3
@@ -359,10 +366,12 @@ MeshRenderer:
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
   m_RenderingLayerMask: 4294967295
   m_RendererPriority: 0
   m_Materials:
@@ -387,6 +396,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &1827619592052302
 GameObject:
   m_ObjectHideFlags: 0
@@ -415,6 +425,7 @@ Transform:
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4999849139159906}
   m_RootOrder: 0
@@ -438,10 +449,12 @@ MeshRenderer:
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
   m_RenderingLayerMask: 4294967295
   m_RendererPriority: 0
   m_Materials:
@@ -466,6 +479,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &1995005497829346
 GameObject:
   m_ObjectHideFlags: 0
@@ -494,6 +508,7 @@ Transform:
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4999849139159906}
   m_RootOrder: 2
@@ -517,10 +532,12 @@ MeshRenderer:
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
   m_RenderingLayerMask: 4294967295
   m_RendererPriority: 0
   m_Materials:
@@ -545,3 +562,4 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
