@@ -119,8 +119,8 @@ MonoBehaviour:
   fogLayersMode: 10
   fogCameraMode: 0
   fogColorStart: {r: 1, g: 0.5898539, b: 0.1462264, a: 1}
-  fogColorEnd: {r: 0.08627452, g: 0.45218936, b: 0.6784314, a: 1}
-  fogColorDuo: 0.5
+  fogColorEnd: {r: 1, g: 0.6111602, b: 0.21226418, a: 1}
+  fogColorDuo: 0.53
   fogDistanceStart: 0
   fogDistanceEnd: 100
   fogDistanceFalloff: 2
