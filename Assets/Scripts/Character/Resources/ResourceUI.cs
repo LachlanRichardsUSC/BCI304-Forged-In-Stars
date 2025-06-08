@@ -27,6 +27,24 @@ public class ResourceUI : MonoBehaviour
         UpdateUI();
     }
 
+    private void Awake()
+    {
+        if (m_ResourceManager == null)
+        {
+            GameObject playerObject = GameObject.FindWithTag("Player");
+            if (playerObject != null)
+            {
+                m_ResourceManager = playerObject.GetComponent<ResourceManager>();
+            }
+
+            if (m_ResourceManager == null)
+            {
+                Debug.LogError($"[{GetType().Name}] Could not find ResourceManager on Player!");
+                enabled = false;
+            }
+        }
+    }
+
     private void OnDisable()
     {
         UnsubscribeFromEvents();
