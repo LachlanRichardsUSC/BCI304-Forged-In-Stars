@@ -68,6 +68,10 @@ public class TerrainObjectPlacer : MonoBehaviour
     [Tooltip("Random scale variation (0 = no variation, 0.2 = ±20%)")]
     [Range(0f, 0.5f)] private float scaleVariation = 0.1f;
 
+    [SerializeField]
+    [Tooltip("Adjust Y position in the event where the objects origin is not at ground level")]
+    [Range(0f, 100.0f)] private float adjustYPos = 0f;
+
     [Header("Debug Visualization")]
     [SerializeField] private bool showDebugSpheres = false;
     [SerializeField] private Material debugSphereMaterial;
@@ -423,8 +427,11 @@ public class TerrainObjectPlacer : MonoBehaviour
                 rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
             }
 
+            // Optional Y position adjustment for wonky pivot points
+            Vector3 adjustedPosition = position + Vector3.up * adjustYPos;
+
             // Spawn object
-            GameObject spawnedObject = Instantiate(prefab, position, rotation, transform);
+            GameObject spawnedObject = Instantiate(prefab, adjustedPosition, rotation, transform);
 
             // Calculate final scale: base scale + random variation
             float scale = baseScale;
