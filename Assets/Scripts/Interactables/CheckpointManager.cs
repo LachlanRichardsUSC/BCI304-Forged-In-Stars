@@ -5,11 +5,14 @@ public class CheckpointManager : MonoBehaviour
 {
     private Vector3 respawnPoint;                  // Stores the last checkpoint position
     private CharacterController controller;        // Reference to the CharacterController component
+    private CharacterMovementController movementController; 
+
 
     void Start()
     {
         controller = GetComponent<CharacterController>(); // Get the CharacterController attached to this GameObject
         respawnPoint = transform.position;               // Set the initial respawn point to the starting position
+        movementController = GetComponent<CharacterMovementController>();
     }
 
     void OnTriggerEnter(Collider other)
@@ -29,10 +32,12 @@ public class CheckpointManager : MonoBehaviour
 
     private System.Collections.IEnumerator RespawnCoroutine()
     {
+        movementController.enabled = false;
         controller.enabled = false;                      // Disable controller to safely move the player
         yield return null;                               // Wait one frame
         transform.position = respawnPoint;               // Move player to the respawn point
         controller.enabled = true;                       // Re-enable the controller
+        movementController.enabled = true;
     }
 
     void Update()
