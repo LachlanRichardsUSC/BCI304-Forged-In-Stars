@@ -52,11 +52,11 @@ public class EnemyAI : MonoBehaviour
         {
             if (Time.time >= lastAttackTime + attackCooldown)
             {
-                PlayerHealth playerHealth = other.GetComponent<PlayerHealth>(); // Try to get the PlayerHealth component from the object we're colliding with
-                if (playerHealth != null) // Make sure the playerHealth component exists before calling TakeDamage
+                 ResourceManager resourceManager = other.GetComponent<ResourceManager>();
+                if (resourceManager != null)
                 {
-                    Debug.Log("Player hit!");
-                    playerHealth.TakeDamage(damageAmount);
+                    Debug.Log($"{enemyType} enemy hit player for {damageAmount} damage!");
+                    resourceManager.TakeDamage(damageAmount);
                     lastAttackTime = Time.time;
                 }
                 else
