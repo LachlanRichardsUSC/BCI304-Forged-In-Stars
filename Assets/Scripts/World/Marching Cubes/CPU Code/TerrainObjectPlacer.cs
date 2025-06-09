@@ -10,7 +10,7 @@ public static class ScattererRegistry
     private static List<float> exclusionRadii = new List<float>();
 
     /// <summary>
-    /// Clears all registered positions. Call this when regenerating all scatterers.
+    /// Clears all registered positions. Calls when regenerating all scatterers.
     /// </summary>
     public static void Clear()
     {

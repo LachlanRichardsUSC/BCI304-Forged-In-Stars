@@ -87,7 +87,7 @@ public class PlayerCombat : MonoBehaviour
 
         Color currentColor;
 
-        // Check if we're still showing attack hit color
+        // Check if still showing attack hit color
         if (Time.time - lastAttackTime < attackHitDisplayDuration)
         {
             currentColor = attackHitColor;

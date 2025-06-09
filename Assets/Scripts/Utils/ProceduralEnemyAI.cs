@@ -3,7 +3,8 @@ using UnityEngine;
 
 /// <summary>
 /// Enemy AI that wanders around and chases the player using A* pathfinding
-/// Includes different enemy types and player damage system
+/// replicates the navmesh based enemy AI.
+/// Also runs like trash but OH WELL LOL
 /// </summary>
 public class ProceduralEnemyAI : MonoBehaviour
 {
@@ -171,13 +172,10 @@ public class ProceduralEnemyAI : MonoBehaviour
                 lastPlayerPosition = player.position;
             }
         }
-
-        // No attack range check - just keep chasing until contact via trigger
     }
 
     /// <summary>
     /// Called when the enemy collides with a trigger (like the player)
-    /// SIMPLIFIED: Just like the old script - damage immediately when touching player
     /// </summary>
     private void OnTriggerStay(Collider other)
     {
@@ -416,7 +414,7 @@ public class ProceduralEnemyAI : MonoBehaviour
 
         if (distance <= detectionRadius)
         {
-            // Optional: Add line of sight check
+            // Add line of sight check
             Vector3 directionToPlayer = (player.position - transform.position).normalized;
             if (Physics.Raycast(transform.position + Vector3.up, directionToPlayer, out RaycastHit hit,
                 detectionRadius, ~playerMask))

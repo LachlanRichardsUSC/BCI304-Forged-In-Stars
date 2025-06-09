@@ -6,6 +6,7 @@ using UnityEngine;
 /// CPU Based A* Path Finding algorithm to find paths between houses with random waypoints inbetween.
 /// Uses the priority value from the Poisson disc scatterer to find paths (priority 1 from a range of 0-2)
 /// Future plans are to write the triplanar shader to a rendertexture and edit the triplanar with A* on the GPU
+/// The priority value is also currently hard-coded, not very user-friendly.
 /// </summary>
 public class PathNetworkGenerator : MonoBehaviour
 {
@@ -134,7 +135,7 @@ public class PathNetworkGenerator : MonoBehaviour
             {
                 int priority = (int)priorityField.GetValue(placer);
 
-                if (priority == 1)
+                if (priority == 1) // Currently hard-coded :(
                 {
                     var spawnedObjects = placer.GetSpawnedObjects();
                     foreach (var obj in spawnedObjects)
@@ -176,7 +177,7 @@ public class PathNetworkGenerator : MonoBehaviour
 
         if (adjustedCellSize != cellSize)
         {
-            Debug.LogWarning($"⚠️ AUTO-ADJUSTED: Cell size changed from {cellSize:F1}m to {adjustedCellSize:F1}m to prevent oversized grid. This new value will be saved to prevent re-adjustment.");
+            Debug.LogWarning($"AUTO-ADJUSTED: Cell size changed from {cellSize:F1}m to {adjustedCellSize:F1}m to prevent oversized grid. This new value will be saved to prevent re-adjustment.");
         }
 
         gridOrigin = minBounds;
@@ -785,7 +786,6 @@ public class PathNetworkGenerator : MonoBehaviour
 
     void OnTerrainReady()
     {
-        // GeneratePaths(); // Now safe to raycast against terrain
         Invoke(nameof(GeneratePaths), 0.6f);
     }
 
@@ -870,7 +870,6 @@ public class PathNetworkGenerator : MonoBehaviour
 
     Vector3 ConformToTerrainSmooth(Vector3 position)
     {
-        // Optimized version - reduce raycast count while maintaining quality
         Vector3 centerPoint = ConformToTerrain(position);
 
         if (terrainSampleRadius <= 1)
