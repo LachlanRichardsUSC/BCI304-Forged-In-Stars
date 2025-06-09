@@ -88,7 +88,7 @@ MonoBehaviour:
   sceneName: Forest_lvl_Final
   levelDisplayName: The Forest
   playerTag: Player
-  loadDelay: 2
+  loadDelay: 0.25
   showDebugMessages: 1
 --- !u!65 &5790463443483266318
 BoxCollider:

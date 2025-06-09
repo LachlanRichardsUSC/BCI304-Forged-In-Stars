@@ -107,21 +107,20 @@ public class PlayerCombat : MonoBehaviour
     {
         if (attackEffectPrefab != null)
         {
-            // Match player's Y rotation plus 90-degree correction plus random variation
+            // Match player's Y rotation plus 90-degree correction (no Y variation for precise facing)
             float playerYRotation = transform.eulerAngles.y;
-            float correctionOffset = 90f; // Adjust this if still off
-            float randomYVariation = Random.Range(-30f, 30f); // ±30 degrees of Y variation
+            float correctionOffset = 90f; // 90-degree offset to match character orientation
 
-            // Random rotation on all axes, but Y follows player
+            // Random rotation on X and Z, Y follows player exactly
             Quaternion effectRotation = Quaternion.Euler(
-                Random.Range(0f, 90f), // Random X rotation
-                playerYRotation + correctionOffset + randomYVariation, // Y follows player + correction + variation
-                Random.Range(0f, 90f)  // Random Z rotation
-                );
+                Random.Range(0f, 45f), // Random X rotation
+                playerYRotation + correctionOffset, // Y follows player + correction (no random variation)
+                Random.Range(0f, 45f)  // Random Z rotation
+            );
 
             GameObject effect = Instantiate(attackEffectPrefab, transform.position, effectRotation);
+            effect.transform.SetParent(transform);
             Destroy(effect, effectDuration);
-
         }
 
         // Find all enemies within cylindrical attack range
@@ -136,7 +135,7 @@ public class PlayerCombat : MonoBehaviour
         // Record attack time for visual feedback
         lastAttackTime = Time.time;
 
-        // Attack ALL enemies in range
+        // Attack all enemies in range
         foreach (Collider enemy in enemiesInRange)
         {
             DamageEnemy(enemy);

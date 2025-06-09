@@ -85,10 +85,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d43e085c19ac416499cd2da8927be12e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sceneName: Otherworld_Village
+  sceneName: Otherworld_Desert
   levelDisplayName: Otherworldly Desert
   playerTag: Player
-  loadDelay: 3
+  loadDelay: 0.25
   showDebugMessages: 1
 --- !u!65 &144504840510174657
 BoxCollider:

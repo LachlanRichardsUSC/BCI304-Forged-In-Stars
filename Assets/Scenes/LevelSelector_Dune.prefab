@@ -88,7 +88,7 @@ MonoBehaviour:
   sceneName: Dune_lvl_Final
   levelDisplayName: The Dunes
   playerTag: Player
-  loadDelay: 2
+  loadDelay: 0.25
   showDebugMessages: 1
 --- !u!65 &5233503709311308699
 BoxCollider:

@@ -88,7 +88,7 @@ MonoBehaviour:
   sceneName: Canyon_lvl_Final
   levelDisplayName: The Canyon
   playerTag: Player
-  loadDelay: 2
+  loadDelay: 0.25
   showDebugMessages: 1
 --- !u!65 &8975889399314347736
 BoxCollider:

@@ -165,13 +165,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5989781450922309019}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: 0, y: 5.16, z: -1.06}
-  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_LocalScale: {x: 4, y: 4, z: 4}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7151263434728878102}
-  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!1 &6389006153760245811
 GameObject:
   m_ObjectHideFlags: 0
@@ -191,7 +191,6 @@ GameObject:
   - component: {fileID: 5137518906979178525}
   - component: {fileID: 8783995046700745165}
   - component: {fileID: 6092813078952285355}
-  - component: {fileID: 2377485478055646592}
   - component: {fileID: 5512668570938621962}
   m_Layer: 11
   m_Name: Player
@@ -433,27 +432,6 @@ CapsuleCollider:
   m_Height: 7.27
   m_Direction: 1
   m_Center: {x: 0, y: 3.635, z: 0}
---- !u!114 &2377485478055646592
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6389006153760245811}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 38a0aab9dfb15a64193411cb515a4977, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  terrainGenerator: {fileID: 0}
-  explosionRadius: 8
-  explosionStrength: 256
-  explosionKey: 101
-  destructionRadius: 8
-  explosionEffectPrefab: {fileID: 725748389856807714, guid: 4bda94453d2ca7444a0fff05b2d425f5, type: 3}
-  effectDuration: 1
-  explosionCooldown: 1
-  showDebugInfo: 0
 --- !u!114 &5512668570938621962
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -466,8 +444,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d53f471293eb424c8e8bbe580f0c065, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  dashVFXPrefab: {fileID: 1134129239631916, guid: 7e48ba6b1b968764490bbc70b66e3fe1, type: 3}
-  vfxDuration: 1
+  dashVFXPrefab: {fileID: 8764043878647920493, guid: c4ed38c72957f2241ad144a1614956d9, type: 3}
+  vfxDuration: 0.55
   vfxSpawnTransform: {fileID: 4019429754202287580}
 --- !u!1 &9162984349042862974
 GameObject:

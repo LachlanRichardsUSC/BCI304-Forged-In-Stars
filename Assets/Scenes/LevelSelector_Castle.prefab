@@ -88,7 +88,7 @@ MonoBehaviour:
   sceneName: Castle_lvl_Final
   levelDisplayName: The Castle
   playerTag: Player
-  loadDelay: 2
+  loadDelay: 0.25
   showDebugMessages: 1
 --- !u!65 &6378145509777404909
 BoxCollider:

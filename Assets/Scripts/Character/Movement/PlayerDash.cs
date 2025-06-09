@@ -153,6 +153,15 @@ public class PlayerDash : MonoBehaviour
             Quaternion spawnRotation = vfxSpawnTransform != null ? vfxSpawnTransform.rotation : transform.rotation;
 
             GameObject vfx = Instantiate(dashVFXPrefab, spawnPosition, spawnRotation);
+            if (vfxSpawnTransform != null)
+            {
+                vfx.transform.SetParent(vfxSpawnTransform);
+            }
+            else
+            {
+                vfx.transform.SetParent(transform);
+            }
+
             Destroy(vfx, vfxDuration);
         }
 
