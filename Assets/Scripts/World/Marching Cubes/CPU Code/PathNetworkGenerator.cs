@@ -2,6 +2,11 @@
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// CPU Based A* Path Finding algorithm to find paths between houses with random waypoints inbetween.
+/// Uses the priority value from the Poisson disc scatterer to find paths (priority 1 from a range of 0-2)
+/// Future plans are to write the triplanar shader to a rendertexture and edit the triplanar with A* on the GPU
+/// </summary>
 public class PathNetworkGenerator : MonoBehaviour
 {
     [Header("Path Settings")]
@@ -23,14 +28,14 @@ public class PathNetworkGenerator : MonoBehaviour
     [SerializeField] private int maxGridSize = 500;
 
     [Header("Terrain Bounds")]
-    [SerializeField] private Vector2 terrainSize = new Vector2(500f, 500f);
+    [SerializeField] private Vector2 terrainSize = new Vector2(500f, 500f); // Should match marching cubes terrain size
 
     [Header("Materials")]
     [SerializeField] private Material pathMaterial;
 
     [Header("Terrain Deformation")]
     [SerializeField] private bool enableTerrainTracking = true;
-    [SerializeField] private float pathUpdateRadius = 15f;
+    [SerializeField] private float pathUpdateRadius = 8f;
     [SerializeField] private bool showAffectedPaths = false;
     [SerializeField] private bool smoothReconformedPaths = true;
     [SerializeField] private int terrainSampleRadius = 2;
@@ -73,21 +78,12 @@ public class PathNetworkGenerator : MonoBehaviour
     void Start()
     {
         Invoke(nameof(GeneratePaths), 1.5f);
+        TerrainGenerator.OnTerrainGenerationComplete += OnTerrainReady;
     }
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.H))
-        {
-            GeneratePaths();
-        }
-
         if (Input.GetKeyDown(KeyCode.P))
-        {
-            GeneratePaths();
-        }
-
-        if (Input.GetKeyDown(KeyCode.G))
         {
             showGrid = !showGrid;
             Debug.Log($"Grid visualization: {(showGrid ? "ON" : "OFF")}");
@@ -613,10 +609,12 @@ public class PathNetworkGenerator : MonoBehaviour
 
         GameObject pathObj = new GameObject($"HousePath_{pathObjects.Count}");
         pathObj.transform.position = Vector3.zero;
+        pathObj.transform.parent = transform;
 
         MeshFilter filter = pathObj.AddComponent<MeshFilter>();
         MeshRenderer renderer = pathObj.AddComponent<MeshRenderer>();
         renderer.material = pathMaterial;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
         List<Vector3> vertices = new List<Vector3>();
         List<int> triangles = new List<int>();
@@ -783,6 +781,12 @@ public class PathNetworkGenerator : MonoBehaviour
                 Debug.Log($"Updated {pathsToUpdate.Count} paths immediately due to terrain deformation");
             }
         }
+    }
+
+    void OnTerrainReady()
+    {
+        // GeneratePaths(); // Now safe to raycast against terrain
+        Invoke(nameof(GeneratePaths), 0.6f);
     }
 
     private System.Collections.IEnumerator UpdatePathsProgressively(List<PathData> pathsToUpdate, Vector3 explosionCenter, float explosionRadius)
@@ -1083,6 +1087,16 @@ public class PathNetworkGenerator : MonoBehaviour
         return gridPos.x >= 0 && gridPos.x < gridWidth && gridPos.y >= 0 && gridPos.y < gridHeight;
     }
 
+    private void OnDestroy()
+    {
+        if (TerrainGenerator.OnTerrainGenerationComplete != null)
+        {
+            TerrainGenerator.OnTerrainGenerationComplete -= OnTerrainReady;
+        }
+
+        // Cancel any pending Invoke calls
+        CancelInvoke();
+    }
     void OnDrawGizmos()
     {
         // Draw path bounds if terrain tracking is enabled
@@ -1139,6 +1153,7 @@ public class PathNetworkGenerator : MonoBehaviour
                     Gizmos.DrawWireCube(node.worldPos, cubeSize);
                 }
             }
+
 
 #if UNITY_EDITOR
             if (showDebug)

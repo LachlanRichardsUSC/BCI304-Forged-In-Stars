@@ -8,6 +8,7 @@ TagManager:
   - Checkpoint
   - Trap
   - Enemy
+  - Grass
   layers:
   - Default
   - TransparentFX
@@ -19,8 +20,8 @@ TagManager:
   - MapObject
   - Enemy
   - Post Processing
-  - 
-  - 
+  - Grass
+  - Player
   - 
   - 
   - 

@@ -69,7 +69,7 @@ public class TerrainObjectPlacer : MonoBehaviour
     [Header("Poisson Disk Sampling")]
     [SerializeField]
     [Tooltip("Minimum distance between decoration objects")]
-    [Range(1f, 50f)] private float minDistance = 8f;
+    [Range(1f, 128f)] private float minDistance = 8f;
 
     [SerializeField]
     [Tooltip("Max attempts to place a point before giving up")]
@@ -102,9 +102,27 @@ public class TerrainObjectPlacer : MonoBehaviour
     [Tooltip("Prefabs to scatter")]
     private GameObject[] decorationPrefabs;
 
+    [Header("Spawn Limits")]
+    [SerializeField]
+    [Tooltip("Enable spawn limits for each prefab type")]
+    private bool enableSpawnLimits = false;
+
+    [SerializeField]
+    [Tooltip("Maximum number of each prefab to spawn (must match decorationPrefabs array length)")]
+    private int[] maxSpawnCounts = new int[0];
+
+    [Header("Object Properties")]
     [SerializeField]
     [Tooltip("Random rotation on Y axis")]
     private bool randomRotation = true;
+
+    [SerializeField]
+    [Tooltip("Random rotation on X and Z axes (for tilting objects)")]
+    private bool randomTiltRotation = false;
+
+    [SerializeField]
+    [Tooltip("Maximum tilt angle for X and Z axes in degrees")]
+    [Range(0f, 45f)] private float maxTiltAngle = 15f;
 
     [SerializeField]
     [Tooltip("Base scale multiplier for all objects")]
@@ -116,7 +134,7 @@ public class TerrainObjectPlacer : MonoBehaviour
 
     [SerializeField]
     [Tooltip("Adjust Y position in the event where the objects origin is not at ground level")]
-    [Range(0f, 100.0f)] private float adjustYPos = 0f;
+    [Range(-100.0f, 100.0f)] private float adjustYPos = 0f;
 
     [Header("Debug Visualization")]
     [SerializeField] private bool showDebugSpheres = false;
@@ -135,40 +153,70 @@ public class TerrainObjectPlacer : MonoBehaviour
     private Vector2[,] _grid;
     private List<Vector2> _activeList = new List<Vector2>();
 
+    // Spawn tracking
+    private int[] _currentSpawnCounts;
+
     private void Start()
     {
-        // Clear registry if this is the highest priority scatterer
         if (generationPriority == 0)
         {
             ScattererRegistry.Clear();
             Debug.Log("Cleared ScattererRegistry (highest priority scatterer)");
         }
 
-        // Wait a frame to ensure terrain is generated, then wait for priority order
-        float delay = 0.1f + (generationPriority * 0.1f);
+        TerrainGenerator.OnTerrainGenerationComplete += OnTerrainReady;
+
+        // Fallback: Check if terrain is already generated
+        TerrainGenerator terrainGen = Object.FindFirstObjectByType<TerrainGenerator>();
+        if (terrainGen != null && terrainGen.Chunks != null && terrainGen.Chunks.Length > 0)
+        {
+            Debug.Log($"[Priority {generationPriority}] Terrain already generated, starting delayed generation");
+            float delay = generationPriority * 0.1f;
+            Invoke(nameof(GenerateDecorationPoints), delay);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        TerrainGenerator.OnTerrainGenerationComplete -= OnTerrainReady;
+    }
+
+    private void OnTerrainReady()
+    {
+        if (generationPriority == 0)
+        {
+            ScattererRegistry.Clear();
+        }
+
+        float delay = generationPriority * 0.1f;
         Invoke(nameof(GenerateDecorationPoints), delay);
     }
 
     private void Update()
     {
-        // Regenerate on R key (same as terrain)
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            Debug.Log("Regenerating decoration points...");
-
-            // Clear registry if this is the highest priority scatterer
-            if (generationPriority == 0)
-            {
-                ScattererRegistry.Clear();
-            }
-
-            GenerateDecorationPoints();
-        }
-
         // Debug key to check registry status
         if (Input.GetKeyDown(KeyCode.T))
         {
             DebugRegistry();
+        }
+    }
+
+    /// <summary>
+    /// Validates spawn limits array matches prefabs array length
+    /// </summary>
+    private void OnValidate()
+    {
+        if (decorationPrefabs != null && maxSpawnCounts.Length != decorationPrefabs.Length)
+        {
+            int[] newCounts = new int[decorationPrefabs.Length];
+            for (int i = 0; i < newCounts.Length; i++)
+            {
+                if (i < maxSpawnCounts.Length)
+                    newCounts[i] = maxSpawnCounts[i];
+                else
+                    newCounts[i] = 10; // Default spawn limit
+            }
+            maxSpawnCounts = newCounts;
         }
     }
 
@@ -402,7 +450,7 @@ public class TerrainObjectPlacer : MonoBehaviour
     }
 
     /// <summary>
-    /// Spawns prefab GameObjects at all valid points.
+    /// Spawns prefab GameObjects at all valid points with optional spawn limits.
     /// </summary>
     private void SpawnPrefabObjects()
     {
@@ -412,18 +460,57 @@ public class TerrainObjectPlacer : MonoBehaviour
             return;
         }
 
-        foreach (Vector3 position in _validPoints)
+        // Initialize spawn counters
+        _currentSpawnCounts = new int[decorationPrefabs.Length];
+        int totalSpawned = 0;
+
+        // Shuffle valid points for random distribution when using limits
+        List<Vector3> shuffledPoints = new List<Vector3>(_validPoints);
+        for (int i = 0; i < shuffledPoints.Count; i++)
         {
-            // Choose random prefab
-            GameObject prefab = decorationPrefabs[Random.Range(0, decorationPrefabs.Length)];
+            Vector3 temp = shuffledPoints[i];
+            int randomIndex = Random.Range(i, shuffledPoints.Count);
+            shuffledPoints[i] = shuffledPoints[randomIndex];
+            shuffledPoints[randomIndex] = temp;
+        }
+
+        foreach (Vector3 position in shuffledPoints)
+        {
+            // Get available prefabs (not at spawn limit)
+            List<int> availablePrefabIndices = GetAvailablePrefabIndices();
+
+            if (availablePrefabIndices.Count == 0)
+            {
+                Debug.Log("All prefabs have reached their spawn limits");
+                break;
+            }
+
+            // Choose random available prefab
+            int prefabIndex = availablePrefabIndices[Random.Range(0, availablePrefabIndices.Count)];
+            GameObject prefab = decorationPrefabs[prefabIndex];
+
             if (prefab == null) continue;
 
-            // Random rotation on Y axis if enabled
+            // Calculate rotation
             Quaternion rotation = Quaternion.identity;
+            float xRotation = 0f;
+            float yRotation = 0f;
+            float zRotation = 0f;
+
+            // Random Y rotation (standard horizontal rotation)
             if (randomRotation)
             {
-                rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+                yRotation = Random.Range(0f, 360f);
             }
+
+            // Random X and Z tilt rotation
+            if (randomTiltRotation && maxTiltAngle > 0f)
+            {
+                xRotation = Random.Range(-maxTiltAngle, maxTiltAngle);
+                zRotation = Random.Range(-maxTiltAngle, maxTiltAngle);
+            }
+
+            rotation = Quaternion.Euler(xRotation, yRotation, zRotation);
 
             // Apply Y adjustment for wonky pivot points
             Vector3 adjustedPosition = position + Vector3.up * adjustYPos;
@@ -441,9 +528,45 @@ public class TerrainObjectPlacer : MonoBehaviour
             spawnedObject.transform.localScale = Vector3.one * scale;
 
             _spawnedObjects.Add(spawnedObject);
+            _currentSpawnCounts[prefabIndex]++;
+            totalSpawned++;
         }
 
-        Debug.Log($"Spawned {_spawnedObjects.Count} prefab objects");
+        Debug.Log($"Spawned {totalSpawned} prefab objects");
+
+        // Log spawn counts if limits are enabled
+        if (enableSpawnLimits)
+        {
+            for (int i = 0; i < decorationPrefabs.Length; i++)
+            {
+                string prefabName = decorationPrefabs[i] != null ? decorationPrefabs[i].name : "null";
+                Debug.Log($"Prefab {i} ({prefabName}): {_currentSpawnCounts[i]}/{maxSpawnCounts[i]}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets list of prefab indices that haven't reached their spawn limit.
+    /// </summary>
+    private List<int> GetAvailablePrefabIndices()
+    {
+        List<int> available = new List<int>();
+
+        for (int i = 0; i < decorationPrefabs.Length; i++)
+        {
+            // If spawn limits are disabled, all prefabs are available
+            if (!enableSpawnLimits)
+            {
+                available.Add(i);
+            }
+            // If spawn limits are enabled, check if under limit
+            else if (i < maxSpawnCounts.Length && _currentSpawnCounts[i] < maxSpawnCounts[i])
+            {
+                available.Add(i);
+            }
+        }
+
+        return available;
     }
 
     /// <summary>

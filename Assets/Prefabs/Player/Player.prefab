@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 3754999835183862847}
   - component: {fileID: 4877695907401882787}
   - component: {fileID: 8383947332193096247}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Mech
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -87,6 +87,91 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1536743797984720792}
   m_Mesh: {fileID: -8713171009388675592, guid: 5621c035c83e3634d900d2ae0e1448ee, type: 3}
+--- !u!1 &5429098723114127480
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7098611593873954920}
+  - component: {fileID: 8702276901133402252}
+  m_Layer: 11
+  m_Name: Weapon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7098611593873954920
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5429098723114127480}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 3.635, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7151263434728878102}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8702276901133402252
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5429098723114127480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db08ead47460dd44a84fe67e42e41a89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  attackRange: 6
+  attackHeight: 4
+  attackDamage: 25
+  enemyLayer:
+    serializedVersion: 2
+    m_Bits: 256
+  showRangeIndicator: 1
+  indicatorHeight: 0
+  attackEffectPrefab: {fileID: 6445826192643391251, guid: 60d310309985b9d4e9917e6e851e63c9, type: 3}
+  effectDuration: 0.5
+--- !u!1 &5989781450922309019
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4019429754202287580}
+  m_Layer: 11
+  m_Name: BoosterVFX
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4019429754202287580
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5989781450922309019}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 5.16, z: -1.06}
+  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7151263434728878102}
+  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
 --- !u!1 &6389006153760245811
 GameObject:
   m_ObjectHideFlags: 0
@@ -103,10 +188,12 @@ GameObject:
   - component: {fileID: 2192070372649867056}
   - component: {fileID: 7630324220713767317}
   - component: {fileID: -2267591077344947421}
-  - component: {fileID: 3532386798188581940}
   - component: {fileID: 5137518906979178525}
   - component: {fileID: 8783995046700745165}
-  m_Layer: 0
+  - component: {fileID: 6092813078952285355}
+  - component: {fileID: 2377485478055646592}
+  - component: {fileID: 5512668570938621962}
+  m_Layer: 11
   m_Name: Player
   m_TagString: Player
   m_Icon: {fileID: 0}
@@ -128,6 +215,8 @@ Transform:
   m_Children:
   - {fileID: 8726288128339591425}
   - {fileID: 3754999835183862847}
+  - {fileID: 7098611593873954920}
+  - {fileID: 4019429754202287580}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &8689795357224545894
@@ -213,7 +302,7 @@ MonoBehaviour:
     staminaCostPerSecond: 15
     postJumpDelay: 0.5
   dashSettings:
-    dashForce: 50
+    dashForce: 20
     dashDuration: 0.2
     dashStaminaCost: 15
     useCameraForward: 1
@@ -246,7 +335,19 @@ MonoBehaviour:
       m_Calls: []
   OnHealthDepleted:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 5137518906979178525}
+        m_TargetAssemblyTypeName: CheckpointManager, Assembly-CSharp
+        m_MethodName: Respawn
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   OnStaminaChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -281,26 +382,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d53f471293eb424c8e8bbe580f0c065, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &3532386798188581940
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6389006153760245811}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: db08ead47460dd44a84fe67e42e41a89, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  attackRange: 3
-  attackDamage: 10
-  enemyLayer:
-    serializedVersion: 2
-    m_Bits: 256
-  attackClosestOnly: 1
-  showRangeIndicator: 1
-  indicatorHeight: 0.1
+  dashVFXPrefab: {fileID: 0}
+  vfxDuration: 1
+  vfxSpawnTransform: {fileID: 0}
 --- !u!114 &5137518906979178525
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -326,6 +410,65 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   health: 100
+--- !u!136 &6092813078952285355
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6389006153760245811}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 1.5
+  m_Height: 7.27
+  m_Direction: 1
+  m_Center: {x: 0, y: 3.635, z: 0}
+--- !u!114 &2377485478055646592
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6389006153760245811}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38a0aab9dfb15a64193411cb515a4977, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  terrainGenerator: {fileID: 0}
+  explosionRadius: 8
+  explosionStrength: 256
+  explosionKey: 101
+  destructionRadius: 8
+  explosionEffectPrefab: {fileID: 725748389856807714, guid: 4bda94453d2ca7444a0fff05b2d425f5, type: 3}
+  effectDuration: 1
+  explosionCooldown: 1
+  showDebugInfo: 0
+--- !u!114 &5512668570938621962
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6389006153760245811}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d53f471293eb424c8e8bbe580f0c065, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dashVFXPrefab: {fileID: 1134129239631916, guid: 7e48ba6b1b968764490bbc70b66e3fe1, type: 3}
+  vfxDuration: 1
+  vfxSpawnTransform: {fileID: 4019429754202287580}
 --- !u!1 &9162984349042862974
 GameObject:
   m_ObjectHideFlags: 0
@@ -335,7 +478,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8726288128339591425}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: CameraTarget
   m_TagString: Untagged
   m_Icon: {fileID: 0}

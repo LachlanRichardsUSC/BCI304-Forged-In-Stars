@@ -16,6 +16,7 @@ Material:
   - _TRANSLUCENCYONOFF_ON
   m_InvalidKeywords:
   - _ALPHAPREMULTIPLY_ON
+  - _CUSTOMCOLORSTINTING_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
@@ -86,7 +87,7 @@ Material:
     m_Floats:
     - _AlphaCutoff: 0.5
     - _BumpScale: 1
-    - _CUSTOMCOLORSTINTING: 0
+    - _CUSTOMCOLORSTINTING: 1
     - _CUSTOMWIND: 1
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
@@ -95,9 +96,9 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0
     - _GlossyReflections: 1
-    - _Gradient: 1.4
+    - _Gradient: 0.3
     - _GradientPower: 1
-    - _LeavesThickness: 0.5
+    - _LeavesThickness: 0.75
     - _MaskClipValue: 0.5
     - _Metallic: 0
     - _Mode: 3
@@ -120,7 +121,7 @@ Material:
     - _TransNormal: 0.5
     - _TransNormalDistortion: 0.1
     - _TransScattering: 2
-    - _TransShadow: 0.9
+    - _TransShadow: 1
     - _TransStrength: 1
     - _Translucency: 1
     - _UVSec: 0
@@ -132,7 +133,7 @@ Material:
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _GroundColor: {r: 1, g: 0, b: 0, a: 1}
-    - _TopColor: {r: 0, g: 0.2178235, b: 1, a: 1}
+    - _GroundColor: {r: 0.018395366, g: 0.2830189, b: 0, a: 1}
+    - _TopColor: {r: 0.887461, g: 1, b: 0.3820755, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

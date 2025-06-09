@@ -10,6 +10,19 @@
 [RequireComponent(typeof(MovementSettings))]
 public class PlayerDash : MonoBehaviour
 {
+    [Header("Visual Effects")]
+    [SerializeField]
+    [Tooltip("VFX prefab to spawn when dashing")]
+    private GameObject dashVFXPrefab;
+
+    [SerializeField]
+    [Tooltip("Duration before destroying the VFX")]
+    private float vfxDuration = 1f;
+
+    [SerializeField]
+    [Tooltip("Transform where VFX should spawn (leave null to use player position)")]
+    private Transform vfxSpawnTransform;
+
     // Runtime state
     private int currentDashes;
     private float dashResetTimer;
@@ -132,6 +145,16 @@ public class PlayerDash : MonoBehaviour
     {
         m_IsDashing = true;
         m_DashTimeRemaining = m_Settings.Dash.dashDuration;
+
+        // Spawn VFX if prefab is assigned
+        if (dashVFXPrefab != null)
+        {
+            Vector3 spawnPosition = vfxSpawnTransform != null ? vfxSpawnTransform.position : transform.position;
+            Quaternion spawnRotation = vfxSpawnTransform != null ? vfxSpawnTransform.rotation : transform.rotation;
+
+            GameObject vfx = Instantiate(dashVFXPrefab, spawnPosition, spawnRotation);
+            Destroy(vfx, vfxDuration);
+        }
 
         // Decrement available dashes
         currentDashes--;

@@ -3,14 +3,18 @@ using UnityEngine;
 public class PlayerCombat : MonoBehaviour
 {
     [Header("Combat Settings")]
-    public float attackRange = 3f;              // Attack radius around player
-    public float attackDamage = 10f;            // Damage dealt
+    public float attackRange = 6f;              // Attack radius around player
+    public float attackHeight = 10f;             // Height of cylindrical attack area
+    public float attackDamage = 25f;            // Damage dealt
     public LayerMask enemyLayer;                // What counts as an enemy
-    public bool attackClosestOnly = true;       // Attack only closest enemy or all in range
 
     [Header("Visual Indicator")]
     public bool showRangeIndicator = true;      // Toggle the visual circle
-    public float indicatorHeight = 0.1f;        // How high above ground to draw circle
+    public float indicatorHeight = 0.0f;        // How high above ground to draw circle
+
+    [Header("Visual Effects")]
+    [SerializeField] private GameObject attackEffectPrefab; // Choose an attack prefab vfx
+    [SerializeField] private float effectDuration = 0.5f; // Duration of effect
 
     // Visual indicator components
     private LineRenderer rangeIndicator;
@@ -90,8 +94,8 @@ public class PlayerCombat : MonoBehaviour
         }
         else
         {
-            // Check if enemies are in range
-            Collider[] enemiesInRange = Physics.OverlapSphere(transform.position, attackRange, enemyLayer);
+            // Check if enemies are in range using cylindrical detection
+            Collider[] enemiesInRange = GetEnemiesInCylindricalRange();
             currentColor = enemiesInRange.Length > 0 ? enemiesInRangeColor : noEnemiesColor;
         }
 
@@ -101,8 +105,27 @@ public class PlayerCombat : MonoBehaviour
 
     void Attack()
     {
-        // Find all enemies within attack range
-        Collider[] enemiesInRange = Physics.OverlapSphere(transform.position, attackRange, enemyLayer);
+        if (attackEffectPrefab != null)
+        {
+            // Match player's Y rotation plus 90-degree correction plus random variation
+            float playerYRotation = transform.eulerAngles.y;
+            float correctionOffset = 90f; // Adjust this if still off
+            float randomYVariation = Random.Range(-30f, 30f); // ±30 degrees of Y variation
+
+            // Random rotation on all axes, but Y follows player
+            Quaternion effectRotation = Quaternion.Euler(
+                Random.Range(0f, 90f), // Random X rotation
+                playerYRotation + correctionOffset + randomYVariation, // Y follows player + correction + variation
+                Random.Range(0f, 90f)  // Random Z rotation
+                );
+
+            GameObject effect = Instantiate(attackEffectPrefab, transform.position, effectRotation);
+            Destroy(effect, effectDuration);
+
+        }
+
+        // Find all enemies within cylindrical attack range
+        Collider[] enemiesInRange = GetEnemiesInCylindricalRange();
 
         if (enemiesInRange.Length == 0)
         {
@@ -113,35 +136,20 @@ public class PlayerCombat : MonoBehaviour
         // Record attack time for visual feedback
         lastAttackTime = Time.time;
 
-        if (attackClosestOnly)
+        // Attack ALL enemies in range
+        foreach (Collider enemy in enemiesInRange)
         {
-            // Attack only the closest enemy
-            Collider closestEnemy = null;
-            float closestDistance = float.MaxValue;
-
-            foreach (Collider enemy in enemiesInRange)
-            {
-                float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closestEnemy = enemy;
-                }
-            }
-
-            if (closestEnemy != null)
-            {
-                DamageEnemy(closestEnemy);
-            }
+            DamageEnemy(enemy);
         }
-        else
-        {
-            // Attack all enemies in range
-            foreach (Collider enemy in enemiesInRange)
-            {
-                DamageEnemy(enemy);
-            }
-        }
+    }
+
+    Collider[] GetEnemiesInCylindricalRange()
+    {
+        // Create cylindrical detection using OverlapCapsule
+        Vector3 point1 = transform.position - Vector3.up * (attackHeight * 0.5f);
+        Vector3 point2 = transform.position + Vector3.up * (attackHeight * 0.5f);
+
+        return Physics.OverlapCapsule(point1, point2, attackRange, enemyLayer);
     }
 
     void DamageEnemy(Collider enemyCollider)
@@ -158,12 +166,27 @@ public class PlayerCombat : MonoBehaviour
     // Gizmos for debugging in Scene view
     void OnDrawGizmosSelected()
     {
-        // Draw attack range sphere
+        // Draw cylindrical attack range
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        // Draw the cylinder as a wireframe capsule
+        Vector3 point1 = transform.position - Vector3.up * (attackHeight * 0.5f);
+        Vector3 point2 = transform.position + Vector3.up * (attackHeight * 0.5f);
+
+        // Draw cylinder body
+        Gizmos.DrawWireSphere(point1, attackRange);
+        Gizmos.DrawWireSphere(point2, attackRange);
+
+        // Draw connecting lines for cylinder
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            Vector3 offset = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * attackRange;
+            Gizmos.DrawLine(point1 + offset, point2 + offset);
+        }
 
         // Show enemies in range
-        Collider[] enemies = Physics.OverlapSphere(transform.position, attackRange, enemyLayer);
+        Collider[] enemies = GetEnemiesInCylindricalRange();
         if (enemies.Length > 0)
         {
             Gizmos.color = Color.red;

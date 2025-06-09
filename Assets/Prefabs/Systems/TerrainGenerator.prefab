@@ -44,29 +44,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 791ca5162980d954b981d84c05256cc0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  preset: 6
+  preset: 2
   applyPreset: 0
   terrainScale: 512
   worldSize: 8
   chunkResolution: 64
-  baseHeight: -27.4
+  baseHeight: -32
   featureScale: 384
-  featureAmplitude: 104
-  noiseOctaves: 4
-  noisePersistence: 0.333
-  noiseLacunarity: 1.982
-  domainWarpStrength: 1
-  caveStrength: 0.75
-  ridgeStrength: 1
-  hardFloorHeight: 0
+  featureAmplitude: 144
+  noiseOctaves: 6
+  noisePersistence: 0.6
+  noiseLacunarity: 1.755
+  domainWarpStrength: 0.1
+  caveStrength: 0.1
+  ridgeStrength: 0.75
+  hardFloorHeight: 22
   hardFloorBlend: 5
   useBlur: 1
-  blurRadius: 2
+  blurRadius: 3
   terrainSeed: 1223
   randomizeSeed: 0
   isoLevel: 0
   useFlatShading: 0
-  material: {fileID: 2100000, guid: 4e1ddbbf55c53fe4f9dbe850579a6ede, type: 2}
+  material: {fileID: 2100000, guid: 19dd5902d1636fa4085cd8cc43107c9d, type: 2}
   groundLayerName: Ground
   meshCompute: {fileID: 7200000, guid: f3de4a9b67304314f837c99e785f8d84, type: 3}
   densityCompute: {fileID: 7200000, guid: 41b3a140912596f428d35fbdc01a272b, type: 3}

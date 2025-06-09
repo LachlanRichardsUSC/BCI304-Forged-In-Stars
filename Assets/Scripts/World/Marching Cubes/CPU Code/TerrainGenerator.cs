@@ -171,8 +171,8 @@ public class TerrainGenerator : MonoBehaviour
                 domainWarpStrength = 0.1f;
                 caveStrength = 0.1f;
                 ridgeStrength = 0.75f;
-                hardFloorHeight = 0f;
-                hardFloorBlend = 40f;
+                hardFloorHeight = 22f;
+                hardFloorBlend = 5f;
                 useBlur = true;
                 blurRadius = 3;
                
@@ -272,6 +272,9 @@ public class TerrainGenerator : MonoBehaviour
     /// <summary>Gets the current terrain seed value.</summary>
     public int CurrentSeed => terrainSeed;
 
+    // Notifies other systems that terrain generation has completed.
+    public static System.Action OnTerrainGenerationComplete;
+
     #endregion
 
     #region Private Fields
@@ -317,7 +320,7 @@ public class TerrainGenerator : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.R))
+        if (Input.GetKeyDown(KeyCode.G))
         {
             Debug.Log("Regenerating terrain...");
             RegenerateTerrainRuntime();
@@ -544,6 +547,8 @@ public class TerrainGenerator : MonoBehaviour
         _timerGeneration.Stop();
         Debug.Log($"Generation Time: {_timerGeneration.ElapsedMilliseconds} ms");
         Debug.Log($"Total vertices: {_totalVerts}");
+        ScattererRegistry.Clear();
+        OnTerrainGenerationComplete?.Invoke();
     }
 
     private void ComputeDensity()

@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8075713367658963937
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8783330029751705117}
+  - component: {fileID: 2683030513977558500}
+  m_Layer: 0
+  m_Name: PathGenerator
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8783330029751705117
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8075713367658963937}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2683030513977558500
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8075713367658963937}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d77611e95a144e41b44232a1cb90273, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxConnectionDistance: 75
+  pathWidth: 3
+  heightOffset: 0.075
+  maxConnectionsPerHouse: 3
+  addPathVariation: 1
+  pathWanderStrength: 1.5
+  pathWanderFrequency: 0.3
+  randomWaypointsPerPath: 2
+  cellSize: 0.5
+  maxSlope: 180
+  terrainMask:
+    serializedVersion: 2
+    m_Bits: 64
+  maxGridSize: 500
+  terrainSize: {x: 500, y: 500}
+  pathMaterial: {fileID: 2100000, guid: 2d8e765682949464db2abdcf482fb71b, type: 2}
+  enableTerrainTracking: 1
+  pathUpdateRadius: 32
+  showAffectedPaths: 1
+  smoothReconformedPaths: 1
+  terrainSampleRadius: 2
+  maxPathUpdatesPerFrame: 5
+  enablePerformanceLogging: 0
+  showDebug: 1
+  showGrid: 1
+  showGridBounds: 1
+  gridVisualizationStep: 5
+  showWalkableOnly: 0
+  gridCubeSize: 0.8

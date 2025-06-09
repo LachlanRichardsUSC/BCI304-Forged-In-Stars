@@ -5,12 +5,27 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/Scenes/ComputeShader.unity
-    guid: 99c9720ab356a0642a771bea13969a05
   - enabled: 1
-    path: Assets/Scenes/Lachlan Scene.unity
+    path: Assets/Scenes/Otherworld_Village.unity
     guid: 77d864eda0444a649877248b262292f4
+  - enabled: 1
+    path: Assets/Scenes/MainMenu.unity
+    guid: ba33a3fc38a93d548a6f329d3df4e43a
+  - enabled: 1
+    path: Assets/Scenes/Canyon_lvl_Final.unity
+    guid: ee285df65bbf70e40a12e20708f5cb4c
+  - enabled: 1
+    path: Assets/Scenes/Castle_lvl_Final.unity
+    guid: 478c66850167bb94e9a32e40e04dbc9b
+  - enabled: 1
+    path: Assets/Scenes/Dune_lvl_Final.unity
+    guid: a15b37a39d2ec4f44956f54cfb167e8f
+  - enabled: 1
+    path: Assets/Scenes/Forest_lvl_Final.unity
+    guid: 5f8a70c5af69fb04f8475c4abc98923d
+  - enabled: 1
+    path: Assets/Scenes/Otherworld_Desert.unity
+    guid: 40c3d8842fa046f42ae8930c9e8e22b9
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

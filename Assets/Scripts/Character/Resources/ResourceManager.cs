@@ -118,4 +118,12 @@ public class ResourceManager : MonoBehaviour
     public float GetHealthPercentage() => m_CurrentHealth / m_MaxHealth;
     public float GetStaminaPercentage() => m_CurrentStamina / m_MaxStamina;
     public void SetRegenerating(bool state) => m_IsRegenerating = state;
+
+    public void ResetHealth()
+    {
+        m_CurrentHealth = m_MaxHealth;
+        OnHealthChanged?.Invoke(GetHealthPercentage());
+    }
 }
+
+

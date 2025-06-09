@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: M_Triplanar_Grass
-  m_Shader: {fileID: -6465566751694194690, guid: d7efdc13fb4473b4682db872530a90cd, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: b6f910229d1c75d44823c2383a4b27dc, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -32,6 +32,10 @@ Material:
         m_Texture: {fileID: 2800000, guid: 9d285138549ec4043ba65c3e911d11d7, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _SideRough:
+        m_Texture: {fileID: 2800000, guid: fc90031dbc743b2439969a00305e2d9e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _SteepAlbedo:
         m_Texture: {fileID: 2800000, guid: 75e4275b94a202e47a622b32c138aed8, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -40,12 +44,20 @@ Material:
         m_Texture: {fileID: 2800000, guid: 9d285138549ec4043ba65c3e911d11d7, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _SteepRough:
+        m_Texture: {fileID: 2800000, guid: fc90031dbc743b2439969a00305e2d9e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _TopAlbedo:
         m_Texture: {fileID: 2800000, guid: dcafddcecfdf53844b2713e59b9a065d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _TopNormal:
         m_Texture: {fileID: 2800000, guid: 235b1ed5e2d3eb5428ad13ba8b237a52, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TopRough:
+        m_Texture: {fileID: 2800000, guid: ca4533e6973e1014c9a2121b2e2b0e08, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:

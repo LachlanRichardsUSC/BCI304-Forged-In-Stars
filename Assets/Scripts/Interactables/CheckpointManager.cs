@@ -38,6 +38,10 @@ public class CheckpointManager : MonoBehaviour
         transform.position = respawnPoint;               // Move player to the respawn point
         controller.enabled = true;                       // Re-enable the controller
         movementController.enabled = true;
+
+        ResourceManager resourceManager = GetComponent<ResourceManager>();
+        if (resourceManager != null)
+            resourceManager.ResetHealth();
     }
 
     void Update()
