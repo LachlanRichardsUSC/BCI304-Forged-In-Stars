@@ -280,8 +280,9 @@ public class TerrainGenerator : MonoBehaviour
     #region Private Fields
 
     // Compute buffers
-    private ComputeBuffer _triangleBuffer;
-    private ComputeBuffer _triCountBuffer;
+    private ComputeBuffer _vertexBuffer;
+    private ComputeBuffer _indexBuffer;
+    private ComputeBuffer _triangleCounterBuffer;
 
     // Render textures
     private RenderTexture _densityTexture;
@@ -411,13 +412,21 @@ public class TerrainGenerator : MonoBehaviour
     {
         int numVoxelsPerAxis = chunkResolution - 1;
         int numVoxels = numVoxelsPerAxis * numVoxelsPerAxis * numVoxelsPerAxis;
-        int maxTriangleCount = numVoxels * 5;
+        int maxTriangleCount = numVoxels * 5; // Conservative estimate
         int maxVertexCount = maxTriangleCount * 3;
 
-        _triCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
-        _triangleBuffer = new ComputeBuffer(maxVertexCount, ComputeHelper.GetStride<VertexData>(), ComputeBufferType.Append);
+        // Buffer setup
+        _vertexBuffer = new ComputeBuffer(maxVertexCount, ComputeHelper.GetStride<VertexData>());
+        _indexBuffer = new ComputeBuffer(maxVertexCount, sizeof(uint));
+
+        // Triangle counter: [0] = current count, [1] = max triangles
+        _triangleCounterBuffer = new ComputeBuffer(2, sizeof(uint));
+        uint[] counterData = { 0, (uint)maxTriangleCount };
+        _triangleCounterBuffer.SetData(counterData);
+
         _vertexDataArray = new VertexData[maxVertexCount];
     }
+
 
     private void CreateChunks()
     {
@@ -475,6 +484,7 @@ public class TerrainGenerator : MonoBehaviour
         chunks.Add(chunk);
     }
 
+    // Unused but too scared to delete
     private void RemoveChunkFromSpatialHash(Chunk chunk)
     {
         Vector3Int cell = WorldToSpatialCell(chunk.Centre);
@@ -587,34 +597,44 @@ public class TerrainGenerator : MonoBehaviour
 
     private void GenerateChunk(Chunk chunk)
     {
-        if (chunk == null)
-            return;
+        if (chunk == null) return;
 
         int numVoxelsPerAxis = chunkResolution - 1;
 
+        // Reset counter
+        uint[] counterReset = { 0, (uint)(numVoxelsPerAxis * numVoxelsPerAxis * numVoxelsPerAxis * 5) };
+        _triangleCounterBuffer.SetData(counterReset);
+
+        // Set compute shader parameters
         meshCompute.SetInt("textureSize", _textureSize);
         meshCompute.SetInt("numPointsPerAxis", chunkResolution);
         meshCompute.SetFloat("isoLevel", isoLevel);
         meshCompute.SetFloat("boundsSize", terrainScale);
 
-        _triangleBuffer.SetCounterValue(0);
-        meshCompute.SetBuffer(0, "triangles", _triangleBuffer);
+        // Set buffers
+        meshCompute.SetBuffer(0, "VertexBuffer", _vertexBuffer);
+        meshCompute.SetBuffer(0, "IndexBuffer", _indexBuffer);
+        meshCompute.SetBuffer(0, "TriangleCounter", _triangleCounterBuffer);
+        meshCompute.SetTexture(0, "DensityTexture", useBlur ? _blurredDensityTexture : _densityTexture);
 
         Vector3 chunkCoord = (Vector3)chunk.Id * numVoxelsPerAxis;
         meshCompute.SetVector("chunkCoord", chunkCoord);
 
-        ComputeHelper.Dispatch(meshCompute, numVoxelsPerAxis, numVoxelsPerAxis, numVoxelsPerAxis);
+        // Dispatch with smaller thread groups (4x4x4 instead of 8x8x8)
+        ComputeHelper.Dispatch(meshCompute, numVoxelsPerAxis, numVoxelsPerAxis, numVoxelsPerAxis, 0);
 
-        int[] vertexCountData = new int[1];
-        _triCountBuffer.SetData(vertexCountData);
-        ComputeBuffer.CopyCount(_triangleBuffer, _triCountBuffer, 0);
-        _triCountBuffer.GetData(vertexCountData);
-
-        int numVertices = vertexCountData[0] * 3;
+        // Get triangle count
+        uint[] counterData = new uint[2];
+        _triangleCounterBuffer.GetData(counterData);
+        uint triangleCount = counterData[0];
+        int numVertices = (int)triangleCount * 3;
 
         if (numVertices > 0)
         {
-            _triangleBuffer.GetData(_vertexDataArray, 0, 0, numVertices);
+            // Get vertex data
+            _vertexBuffer.GetData(_vertexDataArray, 0, 0, numVertices);
+
+            // Create mesh with vertex welding (your existing logic works here)
             chunk.CreateMesh(_vertexDataArray, numVertices, useFlatShading);
             _totalVerts += numVertices;
         }
@@ -718,16 +738,23 @@ public class TerrainGenerator : MonoBehaviour
 
     private void ReleaseResources()
     {
-        if (_triangleBuffer != null)
+        // Release new buffers
+        if (_vertexBuffer != null)
         {
-            _triangleBuffer.Release();
-            _triangleBuffer = null;
+            _vertexBuffer.Release();
+            _vertexBuffer = null;
         }
 
-        if (_triCountBuffer != null)
+        if (_indexBuffer != null)
         {
-            _triCountBuffer.Release();
-            _triCountBuffer = null;
+            _indexBuffer.Release();
+            _indexBuffer = null;
+        }
+
+        if (_triangleCounterBuffer != null)
+        {
+            _triangleCounterBuffer.Release();
+            _triangleCounterBuffer = null;
         }
 
         if (_densityTexture != null && _densityTexture.IsCreated())

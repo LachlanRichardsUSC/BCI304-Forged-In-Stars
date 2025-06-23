@@ -1,27 +1,20 @@
-// A compute shader that implements the marching cubes algorithm for generating terrain mesh.
-// This shader processes 3D density field data to create a set of triangles based on cube configurations.
-// It uses vertex interpolation, normal calculation, and vertex welding to ensure smooth and seamless terrain.
-
 #pragma kernel ProcessCube
 #include "MarchTables.compute"
 
-// Vertex structure matches the C# VertexData struct
-struct Vertex
+// Vertex structure
+struct VertexData
 {
     float3 position;
     float3 normal;
     int2 id;
 };
 
-struct Triangle
-{
-    Vertex vertexC;
-    Vertex vertexB;
-    Vertex vertexA;
-};
+// Buffers - using pre-allocated instead of append
+RWStructuredBuffer<VertexData> VertexBuffer;
+RWStructuredBuffer<uint> IndexBuffer;
+RWStructuredBuffer<uint> TriangleCounter; // [0] = current count, [1] = max triangles
 
-// Buffers and textures
-AppendStructuredBuffer<Triangle> triangles;
+// Density texture
 RWTexture3D<float> DensityTexture;
 
 // Parameters
@@ -51,44 +44,58 @@ float sampleDensity(int3 coord)
     return DensityTexture[coord];
 }
 
-// Calculate normal using central differences
-float3 calculateNormal(int3 coord)
+// Calculate density AND gradient in one pass
+float4 sampleDensityWithGradient(int3 coord)
 {
-    float dx = sampleDensity(coord + int3(1, 0, 0)) - sampleDensity(coord - int3(1, 0, 0));
-    float dy = sampleDensity(coord + int3(0, 1, 0)) - sampleDensity(coord - int3(0, 1, 0));
-    float dz = sampleDensity(coord + int3(0, 0, 1)) - sampleDensity(coord - int3(0, 0, 1));
-    return normalize(-float3(dx, dy, dz));
+    coord = max(0, min(coord, textureSize - 1));
+    
+    // Get neighboring coordinates
+    int3 coord_nx = max(0, coord - int3(1, 0, 0));
+    int3 coord_px = min(textureSize - 1, coord + int3(1, 0, 0));
+    int3 coord_ny = max(0, coord - int3(0, 1, 0));
+    int3 coord_py = min(textureSize - 1, coord + int3(0, 1, 0));
+    int3 coord_nz = max(0, coord - int3(0, 0, 1));
+    int3 coord_pz = min(textureSize - 1, coord + int3(0, 0, 1));
+    
+    // Sample density and calculate gradient
+    float density = DensityTexture[coord];
+    float3 gradient = float3(
+        DensityTexture[coord_px] - DensityTexture[coord_nx],
+        DensityTexture[coord_py] - DensityTexture[coord_ny],
+        DensityTexture[coord_pz] - DensityTexture[coord_nz]
+    );
+    
+    return float4(gradient, density);
 }
 
-// Create a vertex along an edge
-Vertex createVertex(int3 coordA, int3 coordB, float densityA, float densityB)
+// Create a vertex along an edge (keeping your welding IDs)
+VertexData createVertex(int3 coordA, int3 coordB, float4 sampleA, float4 sampleB)
 {
-    // Get positions and density values
+    // Interpolate position based on density values
+    float t = (isoLevel - sampleA.w) / (sampleB.w - sampleA.w);
+    t = saturate(t); // Prevent extrapolation
+    
     float3 posA = coordToWorld(coordA);
     float3 posB = coordToWorld(coordB);
-    
-    // Interpolate position based on density values
-    float t = (isoLevel - densityA) / (densityB - densityA);
-    t = saturate(t); // Add this to prevent extrapolation
     float3 position = posA + t * (posB - posA);
 
-    // Calculate normal at the interpolated coordinate
-    int3 nearestCoord = int3(round(lerp(float3(coordA), float3(coordB), t)));
-    float3 normal = calculateNormal(nearestCoord); // USE YOUR SIMPLE FUNCTION!
+    // Interpolate gradient for normal (much more efficient than your approach)
+    float3 gradient = lerp(sampleA.xyz, sampleB.xyz, t);
+    float3 normal = normalize(-gradient);
 
-    // Create vertex ID for welding
+    // Create vertex ID for welding (keeping your concept)
     int indexA = indexFromCoord(coordA);
     int indexB = indexFromCoord(coordB);
 
-    // Create and return vertex
-    Vertex vertex;
+    VertexData vertex;
     vertex.position = position;
     vertex.normal = normal;
     vertex.id = int2(min(indexA, indexB), max(indexA, indexB));
     return vertex;
 }
 
-[numthreads(8, 8, 8)]
+// Reduced thread group size for better occupancy
+[numthreads(4, 4, 4)]
 void ProcessCube(int3 id : SV_DispatchThreadID)
 {
     // Check if within chunk bounds
@@ -101,7 +108,7 @@ void ProcessCube(int3 id : SV_DispatchThreadID)
     // Get coordinates in the density field
     int3 coord = id + int3(chunkCoord);
 
-    // Get the eight corners of the cube FIRST
+    // Get the eight corners of the cube
     int3 cornerCoords[8];
     cornerCoords[0] = coord + int3(0, 0, 0);
     cornerCoords[1] = coord + int3(1, 0, 0);
@@ -112,57 +119,86 @@ void ProcessCube(int3 id : SV_DispatchThreadID)
     cornerCoords[6] = coord + int3(1, 1, 1);
     cornerCoords[7] = coord + int3(0, 1, 1);
 
-    // THEN cache the densities
-    float cornerDensities[8];
+    // Sample density AND gradients once per corner
+    float4 cornerSamples[8];
     for (int i = 0; i < 8; i++)
     {
-        cornerDensities[i] = sampleDensity(cornerCoords[i]);
+        cornerSamples[i] = sampleDensityWithGradient(cornerCoords[i]);
     }
 
-    // Calculate cube configuration index using cached values
+    // Calculate cube configuration index
     int cubeConfiguration = 0;
     for (int cornerIndex = 0; cornerIndex < 8; cornerIndex++)
     {
-        if (cornerDensities[cornerIndex] < isoLevel)
+        if (cornerSamples[cornerIndex].w < isoLevel)
         {
             cubeConfiguration |= (1 << cornerIndex);
         }
     }
 
+    // Early exit for empty configurations
+    if (cubeConfiguration == 0 || cubeConfiguration == 255)
+        return;
+
     // Get triangulation for this cube configuration
     int edgeIndices[16] = triangulation[cubeConfiguration];
+
+    // Pre-calculate edge vertices (reusing gradient data)
+    VertexData edgeVertices[12];
+    bool edgeActive[12];
+    
+    // Calculate all edge vertices once
+    for (int edge = 0; edge < 12; edge++)
+    {
+        int a0 = cornerIndexAFromEdge[edge];
+        int a1 = cornerIndexBFromEdge[edge];
+        
+        float4 sampleA = cornerSamples[a0];
+        float4 sampleB = cornerSamples[a1];
+        
+        // Check if edge actually crosses the isosurface
+        bool crosses = (sampleA.w < isoLevel) != (sampleB.w < isoLevel);
+        edgeActive[edge] = crosses;
+        
+        if (crosses)
+        {
+            edgeVertices[edge] = createVertex(cornerCoords[a0], cornerCoords[a1], sampleA, sampleB);
+        }
+    }
 
     // Create triangles for the current cube
     for (int triIndex = 0; triIndex < 16; triIndex += 3)
     {
         if (edgeIndices[triIndex] == -1)
-        {
             break;
-        }
 
-        // Get indices for the three edges that form a triangle
-        int edgeIndexA = edgeIndices[triIndex];
-        int a0 = cornerIndexAFromEdge[edgeIndexA];
-        int a1 = cornerIndexBFromEdge[edgeIndexA];
+        // Get the three edge indices for this triangle
+        int edgeA = edgeIndices[triIndex];
+        int edgeB = edgeIndices[triIndex + 1];
+        int edgeC = edgeIndices[triIndex + 2];
+        
+        // Safety check
+        if (!edgeActive[edgeA] || !edgeActive[edgeB] || !edgeActive[edgeC])
+            continue;
 
-        int edgeIndexB = edgeIndices[triIndex + 1];
-        int b0 = cornerIndexAFromEdge[edgeIndexB];
-        int b1 = cornerIndexBFromEdge[edgeIndexB];
+        // Atomic increment for thread safety
+        uint triangleIndex;
+        InterlockedAdd(TriangleCounter[0], 1, triangleIndex);
+        
+        // Check bounds
+        if (triangleIndex >= TriangleCounter[1])
+            return;
 
-        int edgeIndexC = edgeIndices[triIndex + 2];
-        int c0 = cornerIndexAFromEdge[edgeIndexC];
-        int c1 = cornerIndexBFromEdge[edgeIndexC];
-
-        // Create the three vertices
-        Vertex vertexA = createVertex(cornerCoords[a0], cornerCoords[a1], cornerDensities[a0], cornerDensities[a1]);
-        Vertex vertexB = createVertex(cornerCoords[b0], cornerCoords[b1], cornerDensities[b0], cornerDensities[b1]);
-        Vertex vertexC = createVertex(cornerCoords[c0], cornerCoords[c1], cornerDensities[c0], cornerDensities[c1]);
-
-        // Create and append triangle
-        Triangle tri;
-        tri.vertexA = vertexA;
-        tri.vertexB = vertexB;
-        tri.vertexC = vertexC;
-        triangles.Append(tri);
+        // Write vertices to buffer 
+        uint vertexIndex = triangleIndex * 3;
+        
+        VertexBuffer[vertexIndex + 0] = edgeVertices[edgeA];
+        VertexBuffer[vertexIndex + 1] = edgeVertices[edgeC];
+        VertexBuffer[vertexIndex + 2] = edgeVertices[edgeB];
+        
+        // Write indices for vertex welding
+        IndexBuffer[vertexIndex + 0] = vertexIndex + 0;
+        IndexBuffer[vertexIndex + 1] = vertexIndex + 1;
+        IndexBuffer[vertexIndex + 2] = vertexIndex + 2;
     }
 }

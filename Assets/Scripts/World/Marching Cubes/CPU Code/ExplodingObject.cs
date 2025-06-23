@@ -21,6 +21,7 @@ public class ExplodingObject : MonoBehaviour
     [Header("Visual Feedback")]
     [SerializeField] private GameObject explosionEffectPrefab;
     [SerializeField] private float effectDuration = 1f;
+    [SerializeField] private float effectScale = 1f;
 
     [Header("Cooldown")]
     [SerializeField] private float explosionCooldown = 1.0f;
@@ -109,6 +110,7 @@ public class ExplodingObject : MonoBehaviour
         if (explosionEffectPrefab != null)
         {
             GameObject effect = Instantiate(explosionEffectPrefab, explosionPosition, Quaternion.identity);
+            effect.transform.localScale = Vector3.one * effectScale;
             Destroy(effect, effectDuration);
         }
 
